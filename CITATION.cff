@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the project and its author."
+title: "Planner"
+version: "0.8.1"
+type: software
+authors:
+  - family-names: "Jopson"
+    given-names: "Ren"
+url: "https://rin677.github.io/planner/"
+repository-code: "https://github.com/rin677/planner"
