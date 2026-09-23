@@ -2,8 +2,8 @@
 
 **Planner** is a native macOS planning command center by Ren Jopson connecting Apple Calendar, Focus and Deadlock.
 
-**Author:** [Ren Jopson](https://rin677.github.io/ren-jopson/)  
-**Website:** https://rin677.github.io/planner/  
+**Author:** [Ren Jopson](https://ren-jop.github.io/ren-jopson/)  
+**Website:** https://ren-jop.github.io/planner/  
 **Latest source snapshot:** v0.8.1
 
 > v0.8.1 is a preview release; the latest Planner GUI still needs final runtime verification on the target Mac.

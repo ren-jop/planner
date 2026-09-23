@@ -6,5 +6,5 @@ type: software
 authors:
   - family-names: "Jopson"
     given-names: "Ren"
-url: "https://rin677.github.io/planner/"
-repository-code: "https://github.com/rin677/planner"
+url: "https://ren-jop.github.io/planner/"
+repository-code: "https://github.com/ren-jop/planner"
