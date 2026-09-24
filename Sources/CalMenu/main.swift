@@ -153,8 +153,9 @@ final class CalendarMenuState: NSObject, ObservableObject {
             object: store,
             queue: .main
         ) { [weak self] _ in
+            guard let state = self else { return }
             Task { @MainActor in
-                self?.scheduleEventStoreReload()
+                state.scheduleEventStoreReload()
             }
         }
 
@@ -2878,6 +2879,7 @@ private struct EventEditorView: View {
 }
 
 @main
+@MainActor
 struct CalMenuApp: App {
     private let state = CalendarMenuState()
 
