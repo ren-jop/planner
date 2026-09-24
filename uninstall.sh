@@ -1,11 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
-[[ "$(uname -s)" == "Darwin" ]] || { echo "error: macOS only." >&2; exit 1; }
-
 UID_NOW="$(id -u)"
-launchctl bootout "gui/$UID_NOW/local.ren.calmenu" 2>/dev/null || true
-rm -f "$HOME/Library/LaunchAgents/local.ren.calmenu.plist"
-sudo rm -rf /Applications/calmenu.app
+AGENT="$HOME/Library/LaunchAgents/local.ren.planner.plist"
+LEGACY_AGENT="$HOME/Library/LaunchAgents/local.ren.calmenu.plist"
 
-echo "Planner preview removed."
+launchctl bootout "gui/$UID_NOW/local.ren.planner" 2>/dev/null || true
+launchctl bootout "gui/$UID_NOW/local.ren.calmenu" 2>/dev/null || true
+rm -f "$AGENT" "$LEGACY_AGENT"
+sudo rm -rf /Applications/Planner.app /Applications/calmenu.app
+
+echo "Planner removed."

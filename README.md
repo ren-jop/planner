@@ -1,63 +1,79 @@
 # Planner
 
-A native macOS planning layer that keeps **Apple Calendar as the source of truth** and connects scheduled work to Focus execution and Deadlock protection.
+A native macOS planning interface that keeps Apple Calendar as the source of truth and connects scheduled work to Focus execution and Deadlock protection.
 
-> **Status:** v0.8.1 preview. The current GUI still needs broader runtime verification.
+**Current version:** v0.8.1 preview  
+**Platform:** macOS 14+  
+**Stack:** Swift, SwiftUI, AppKit, EventKit, Swift Package Manager
+
+> Planner is preview software. Calendar access and the current GUI should be verified on your Mac before you rely on it for important scheduling.
 
 ## Install
 
-Requirements: macOS 14+ and Apple's Command Line Tools.
+You need the macOS Command Line Tools / Swift toolchain.
 
 ```bash
-git clone https://github.com/ren-jop/planner.git
+git clone --depth 1 https://github.com/ren-jop/planner.git
 cd planner
 ./install.sh
 ```
 
-The installer reconstructs and verifies the vendored v0.8.1 source snapshot, builds it with Swift Package Manager, and installs the app.
+The installer builds from source, ad-hoc signs the app, installs it as `/Applications/Planner.app`, and configures its login agent. macOS may ask for Calendar access on first launch.
 
-The preview currently retains the internal target/app name **calmenu** for compatibility while the public project name is Planner.
+### Update
 
-Remove it with:
+```bash
+git pull --ff-only
+./install.sh
+```
+
+### Uninstall
 
 ```bash
 ./uninstall.sh
 ```
 
-## Engineering
+The installer also cleans up older preview builds that were published under the internal `calmenu` app name.
 
-- Apple Calendar / EventKit remains the scheduling database
-- upcoming blocks and events are surfaced without duplicating calendar state
-- calendar context can start a Focus session
-- recent Focus history supports planned-vs-actual review
-- Deadlock remains downstream of Focus rather than being triggered independently
-- Swift + Swift Package Manager with native macOS frameworks
+## What it does
 
-## Ownership model
+- Uses Apple Calendar / EventKit instead of maintaining a second calendar database
+- Surfaces upcoming blocks, goals and recent Focus work
+- Creates and edits calendar events
+- Starts scheduled work in Focus
+- Compares planned time with actual Focus history
+- Detects optional Deadlock integration for distraction protection
+
+## Architecture
 
 ```text
 Apple Calendar / EventKit
-          │
+          ↓
        Planner
-          │ context
-          ▼
+          ↓
         Focus
-       /     \
- history    Deadlock
+          ↓
+      Deadlock
 ```
 
-Planner owns planning context, Focus owns the active session, and Deadlock owns enforcement.
+Each layer has a narrow responsibility: Calendar owns scheduling, Planner owns orchestration, Focus owns work sessions, and Deadlock owns enforcement.
 
-## Source snapshot
+## Development
 
-The v0.8.1 preview snapshot is vendored under `source/` as ordered base64 chunks. `install.sh` concatenates, decodes and validates the ZIP before building. A notarized binary distribution is not published yet.
+```bash
+swift build -c release
+./build.sh
+./smoke.sh
+```
 
-## Links
+CI compiles the Swift package on macOS for every push and pull request.
+
+## Project links
 
 - Project page: https://ren-jop.github.io/planner/
-- Focus: https://github.com/ren-jop/focus
-- Deadlock: https://github.com/ren-jop/deadlock
+- Portfolio: https://ren-jop.github.io/
+- Author: Ren Jopson
 
 ## License
 
-No open-source license has been selected. The repository is public for source visibility and release distribution; copyright remains with the author unless a license is added later.
+No open-source license has been selected yet. The repository is public for source visibility and review; copyright remains with the author unless a license is added later.

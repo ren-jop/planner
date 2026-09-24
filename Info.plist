@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key><string>en</string>
+    <key>CFBundleExecutable</key><string>calmenu</string>
+    <key>CFBundleIdentifier</key><string>local.ren.planner</string>
+    <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+    <key>CFBundleName</key><string>Planner</string>
+    <key>CFBundleDisplayName</key><string>Planner</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleShortVersionString</key><string>0.8.1</string>
+    <key>CFBundleVersion</key><string>10</string>
+    <key>LSMinimumSystemVersion</key><string>14.0</string>
+    <key>LSUIElement</key><true/>
+    <key>LSMultipleInstancesProhibited</key><true/>
+    <key>NSCalendarsFullAccessUsageDescription</key><string>Planner needs Calendar access to show and create your Apple Calendar events.</string>
+    <key>NSCalendarsUsageDescription</key><string>Planner needs Calendar access to show and create your Apple Calendar events.</string>
+    <key>NSAppleEventsUsageDescription</key><string>Planner can open supporting command-line tools in Terminal when you choose that action.</string>
+    <key>NSHighResolutionCapable</key><true/>
+</dict>
+</plist>
