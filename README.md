@@ -1,16 +1,16 @@
 # Planner
 
-A native macOS planning interface that keeps Apple Calendar as the source of truth and connects scheduled work to Focus execution and Deadlock protection.
+A small macOS planning app built around Apple Calendar.
 
-**Current version:** v0.8.1 preview  
+**Status:** v0.8.1 preview  
 **Platform:** macOS 14+  
-**Stack:** Swift, SwiftUI, AppKit, EventKit, Swift Package Manager
+**Stack:** Swift, SwiftUI, AppKit, EventKit, SwiftPM
 
-> Planner is preview software. Calendar access and the current GUI should be verified on your Mac before you rely on it for important scheduling.
+## Why
+
+I already use Apple Calendar. I did not want a second planning database containing the same schedule, so Planner uses EventKit directly.
 
 ## Install
-
-You need the macOS Command Line Tools / Swift toolchain.
 
 ```bash
 git clone --depth 1 https://github.com/ren-jop/planner.git
@@ -18,45 +18,49 @@ cd planner
 ./install.sh
 ```
 
-The installer builds from source, ad-hoc signs the app, installs it as `/Applications/Planner.app`, and configures its login agent. macOS may ask for Calendar access on first launch.
+The installer builds and installs:
 
-### Update
+```text
+/Applications/Planner.app
+```
+
+macOS will ask for Calendar access on first use.
+
+## What it does
+
+- Reads and edits Apple Calendar events.
+- Shows upcoming blocks and goals.
+- Starts scheduled work in Focus.
+- Shows recent Focus work.
+- Compares planned time with completed Focus sessions.
+- Detects Deadlock when it is installed.
+
+## How the apps fit together
+
+```text
+Apple Calendar
+     ↓
+  Planner
+     ↓
+   Focus
+     ↓
+ Deadlock
+```
+
+Planner handles planning. Focus handles the active session. Deadlock handles blocking.
+
+## Update
 
 ```bash
 git pull --ff-only
 ./install.sh
 ```
 
-### Uninstall
+## Uninstall
 
 ```bash
 ./uninstall.sh
 ```
-
-The installer also cleans up older preview builds that were published under the internal `calmenu` app name.
-
-## What it does
-
-- Uses Apple Calendar / EventKit instead of maintaining a second calendar database
-- Surfaces upcoming blocks, goals and recent Focus work
-- Creates and edits calendar events
-- Starts scheduled work in Focus
-- Compares planned time with actual Focus history
-- Detects optional Deadlock integration for distraction protection
-
-## Architecture
-
-```text
-Apple Calendar / EventKit
-          ↓
-       Planner
-          ↓
-        Focus
-          ↓
-      Deadlock
-```
-
-Each layer has a narrow responsibility: Calendar owns scheduling, Planner owns orchestration, Focus owns work sessions, and Deadlock owns enforcement.
 
 ## Development
 
@@ -66,14 +70,8 @@ swift build -c release
 ./smoke.sh
 ```
 
-CI compiles the Swift package on macOS for every push and pull request.
-
-## Project links
-
-- Project page: https://ren-jop.github.io/planner/
-- Portfolio: https://ren-jop.github.io/
-- Author: Ren Jopson
+The internal executable still uses the older `calmenu` name in a few places for compatibility.
 
 ## License
 
-No open-source license has been selected yet. The repository is public for source visibility and review; copyright remains with the author unless a license is added later.
+No open-source license has been selected yet.
