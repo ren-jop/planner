@@ -2,8 +2,10 @@
 
 A small macOS planning app built around Apple Calendar.
 
-**Status:** v0.8.1 preview  
-**Platform:** macOS 14+  
+**Status:** v0.8.2 preview
+
+**Platform:** macOS 14+
+
 **Stack:** Swift, SwiftUI, AppKit, EventKit, SwiftPM
 
 ## Why
@@ -28,6 +30,8 @@ macOS will ask for Calendar access on first use.
 
 ## What it does
 
+- Shows Apple Calendar events in a week timeline with half-hour slots.
+- Click a slot to prepare a block, adjust its duration and check overlaps before adding it.
 - Reads and edits Apple Calendar events.
 - Shows upcoming blocks and goals.
 - Starts scheduled work in Focus.
@@ -50,6 +54,9 @@ Apple Calendar
 Planner handles planning. Focus handles the active session. Deadlock handles blocking.
 
 ## Update
+
+On your Mac, from the cloned Planner repository:
+
 
 ```bash
 git pull --ff-only
