@@ -7960,8 +7960,7 @@ private struct EventEditorView: View {
                                 }
                             }
 
-                            if model.event
-                                .hasRecurrenceRules {
+                            if model.isRecurringSeries {
                                 Picker(
                                     "Apply edits to",
                                     selection:
@@ -8178,8 +8177,7 @@ private struct EventEditorView: View {
                     state.deleteEvent(
                         model.event,
                         span:
-                            model.event
-                                .hasRecurrenceRules
+                            model.isRecurringSeries
                             ? model
                                 .editScope
                                 .eventKitSpan
