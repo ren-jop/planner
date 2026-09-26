@@ -1131,19 +1131,22 @@ final class CalendarMenuState: NSObject, ObservableObject {
     }
 
     private func markFocusBlockTriggered(
-        _ event: EKEvent
+        eventID: String,
+        start: Date
     ) {
-        let id =
-            event.calendarItemIdentifier
         guard var metadata =
-                focusBlockMetadata[id]
+                focusBlockMetadata[
+                    eventID
+                ]
         else {
             return
         }
 
         metadata.lastTriggeredStart =
-            event.startDate
-        focusBlockMetadata[id] = metadata
+            start
+        focusBlockMetadata[
+            eventID
+        ] = metadata
         saveFocusBlockMetadata()
     }
 
@@ -2806,9 +2809,12 @@ final class CalendarMenuState: NSObject, ObservableObject {
                     }
 
                     if status == 0 {
-                        if self.isFocusBlock(event) {
+                        if self.focusBlockMetadata[
+                            eventID
+                        ] != nil {
                             self.markFocusBlockTriggered(
-                                event
+                                eventID: eventID,
+                                start: eventStart
                             )
                         }
 
