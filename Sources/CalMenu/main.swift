@@ -2487,8 +2487,10 @@ private struct PlannerDashboardView: View {
 
 private struct PlannerCalendarView: View {
     @ObservedObject var state: CalendarMenuState
-    private let hourHeight: CGFloat = 62
-    private let dayWidth: CGFloat = 104
+
+    private let hourHeight: CGFloat = 58
+    private let timeGutterWidth: CGFloat = 52
+    private let minimumDayWidth: CGFloat = 108
 
     private struct Placement {
         let event: EKEvent
@@ -2498,92 +2500,140 @@ private struct PlannerCalendarView: View {
 
     private var days: [Date] {
         (0..<7).compactMap {
-            Calendar.current.date(byAdding: .day, value: $0, to: state.weekStart)
+            Calendar.current.date(
+                byAdding: .day,
+                value: $0,
+                to: state.weekStart
+            )
         }
     }
 
     private var startHour: Int {
-        min(6, state.weekEvents.filter { !$0.isAllDay }
-            .map { Calendar.current.component(.hour, from: $0.startDate) }.min() ?? 6)
+        min(
+            6,
+            state.weekEvents
+                .filter { !$0.isAllDay }
+                .map {
+                    Calendar.current.component(
+                        .hour,
+                        from: $0.startDate
+                    )
+                }
+                .min() ?? 6
+        )
     }
 
     private var endHour: Int {
-        max(23, state.weekEvents.filter { !$0.isAllDay }
-            .map {
-                Calendar.current.component(.hour, from: $0.endDate) +
-                (Calendar.current.component(.minute, from: $0.endDate) > 0 ? 1 : 0)
-            }.max() ?? 23)
+        max(
+            23,
+            state.weekEvents
+                .filter { !$0.isAllDay }
+                .map {
+                    Calendar.current.component(
+                        .hour,
+                        from: $0.endDate
+                    )
+                    + (
+                        Calendar.current.component(
+                            .minute,
+                            from: $0.endDate
+                        ) > 0 ? 1 : 0
+                    )
+                }
+                .max() ?? 23
+        )
     }
 
     var body: some View {
         HSplitView {
             VStack(spacing: 0) {
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Calendar")
-                            .font(.system(size: 23, weight: .semibold))
-                        Text(weekLabel)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Button("Today", action: state.goToToday)
-                    Button { state.moveWeek(-1) } label: {
-                        Image(systemName: "chevron.left")
-                    }
-                    .help("Previous week")
-                    Button { state.moveWeek(1) } label: {
-                        Image(systemName: "chevron.right")
-                    }
-                    .help("Next week")
-                }
-                .padding(.horizontal, 18)
-                .padding(.vertical, 14)
+                calendarToolbar
 
                 Divider()
 
                 if state.accessDenied {
-                    Text("Allow Planner full access to Calendar in System Settings to see and add blocks.")
-                        .foregroundStyle(.secondary)
-                        .padding(24)
+                    Text(
+                        "Allow Planner full access to Calendar in System Settings to see and add blocks."
+                    )
+                    .foregroundStyle(.secondary)
+                    .padding(24)
                     Spacer()
                 } else if !state.accessGranted {
                     ProgressView("Loading calendars")
                         .padding(24)
                     Spacer()
                 } else {
-                    ScrollView(.horizontal) {
-                        VStack(spacing: 0) {
-                            HStack(spacing: 0) {
-                                Color.clear.frame(width: 48)
-                                ForEach(days, id: \.self) { day in
-                                    dayHeader(day)
-                                        .frame(width: dayWidth)
-                                }
-                            }
-                            .padding(.bottom, 8)
+                    GeometryReader { geometry in
+                        let usableWidth = max(
+                            0,
+                            geometry.size.width - timeGutterWidth
+                        )
+                        let resolvedDayWidth = max(
+                            minimumDayWidth,
+                            floor(usableWidth / 7)
+                        )
 
-                            Divider()
+                        ScrollView(.horizontal) {
+                            VStack(spacing: 0) {
+                                HStack(spacing: 0) {
+                                    Color.clear
+                                        .frame(width: timeGutterWidth)
 
-                            ScrollViewReader { proxy in
-                                ScrollView(.vertical) {
-                                    HStack(alignment: .top, spacing: 0) {
-                                        timeGutter
-                                        ForEach(days, id: \.self) { day in
-                                            dayColumn(day)
-                                        }
+                                    ForEach(days, id: \.self) { day in
+                                        dayHeader(day)
+                                            .frame(
+                                                width: resolvedDayWidth
+                                            )
                                     }
                                 }
-                                .onAppear {
-                                    let current = Calendar.current.component(.hour, from: Date())
-                                    proxy.scrollTo(max(startHour, min(endHour - 2, current - 2)), anchor: .top)
+                                .padding(.bottom, 6)
+
+                                Divider()
+
+                                ScrollViewReader { proxy in
+                                    ScrollView(.vertical) {
+                                        HStack(
+                                            alignment: .top,
+                                            spacing: 0
+                                        ) {
+                                            timeGutter
+
+                                            ForEach(days, id: \.self) { day in
+                                                dayColumn(
+                                                    day,
+                                                    width: resolvedDayWidth
+                                                )
+                                            }
+                                        }
+                                        .frame(
+                                            minWidth: geometry.size.width,
+                                            alignment: .leading
+                                        )
+                                    }
+                                    .onAppear {
+                                        let current =
+                                            Calendar.current.component(
+                                                .hour,
+                                                from: Date()
+                                            )
+                                        proxy.scrollTo(
+                                            max(
+                                                startHour,
+                                                min(
+                                                    endHour - 2,
+                                                    current - 2
+                                                )
+                                            ),
+                                            anchor: .top
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-            .frame(minWidth: 720)
+            .frame(minWidth: 760)
 
             VStack(spacing: 0) {
                 CalendarAgendaView(
@@ -2591,86 +2641,256 @@ private struct PlannerCalendarView: View {
                     plannerMode: true,
                     onEdit: state.showEventEditor
                 )
-                .padding(16)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .padding(14)
+                .frame(
+                    maxWidth: .infinity,
+                    maxHeight: .infinity,
+                    alignment: .top
+                )
 
                 Divider()
 
                 QuickAddView(state: state)
-                    .padding(16)
+                    .padding(14)
             }
-            .frame(minWidth: 300, idealWidth: 330, maxWidth: 390)
+            .frame(
+                minWidth: 270,
+                idealWidth: 300,
+                maxWidth: 325
+            )
         }
+    }
+
+    private var calendarToolbar: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Calendar")
+                    .font(
+                        .system(
+                            size: 22,
+                            weight: .semibold
+                        )
+                    )
+
+                Text(weekLabel)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Button("Today", action: state.goToToday)
+                .controlSize(.small)
+
+            HStack(spacing: 2) {
+                Button {
+                    state.moveWeek(-1)
+                } label: {
+                    Image(systemName: "chevron.left")
+                }
+                .help("Previous week")
+
+                Button {
+                    state.moveWeek(1)
+                } label: {
+                    Image(systemName: "chevron.right")
+                }
+                .help("Next week")
+            }
+            .controlSize(.small)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 11)
     }
 
     private var weekLabel: String {
         guard let last = days.last else { return "" }
-        return state.weekStart.formatted(.dateTime.month(.abbreviated).day()) +
-            " – " + last.formatted(.dateTime.month(.abbreviated).day().year())
+
+        return state.weekStart.formatted(
+            .dateTime.month(.abbreviated).day()
+        )
+        + " – "
+        + last.formatted(
+            .dateTime.month(.abbreviated).day().year()
+        )
     }
 
     private func dayHeader(_ day: Date) -> some View {
-        let selected = Calendar.current.isDate(day, inSameDayAs: state.selectedDate)
+        let selected = Calendar.current.isDate(
+            day,
+            inSameDayAs: state.selectedDate
+        )
+        let today = Calendar.current.isDateInToday(day)
+        let nextDay =
+            Calendar.current.date(
+                byAdding: .day,
+                value: 1,
+                to: day
+            ) ?? day
+
         let allDay = state.weekEvents.filter {
-            $0.isAllDay && $0.startDate < (Calendar.current.date(byAdding: .day, value: 1, to: day) ?? day) &&
-            $0.endDate > day
+            $0.isAllDay
+            && $0.startDate < nextDay
+            && $0.endDate > day
         }
+
         return Button {
             state.selectDate(day)
         } label: {
-            VStack(alignment: .leading, spacing: 5) {
-                Text(day.formatted(.dateTime.weekday(.abbreviated)))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(day.formatted(.dateTime.day()))
-                    .font(.system(size: 18, weight: selected ? .bold : .medium))
-                if let first = allDay.first {
-                    Text(first.title ?? "All day")
-                        .lineLimit(1)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text(" ").font(.caption2)
+            VStack(spacing: 4) {
+                Text(
+                    day.formatted(
+                        .dateTime.weekday(.abbreviated)
+                    )
+                    .uppercased()
+                )
+                .font(
+                    .system(
+                        size: 10,
+                        weight: .medium
+                    )
+                )
+                .foregroundStyle(.secondary)
+
+                Text(
+                    day.formatted(
+                        .dateTime.day()
+                    )
+                )
+                .font(
+                    .system(
+                        size: 17,
+                        weight: selected ? .bold : .semibold,
+                        design: .rounded
+                    )
+                )
+                .frame(width: 30, height: 26)
+                .background(
+                    Circle()
+                        .fill(
+                            selected
+                            ? Color.accentColor
+                            : (
+                                today
+                                ? Color.primary.opacity(0.08)
+                                : Color.clear
+                            )
+                        )
+                )
+                .foregroundStyle(
+                    selected
+                    ? Color.white
+                    : Color.primary
+                )
+
+                Group {
+                    if allDay.isEmpty {
+                        Color.clear
+                    } else if allDay.count == 1 {
+                        Text(allDay[0].title ?? "All day")
+                            .lineLimit(1)
+                    } else {
+                        Text("\(allDay.count) all-day")
+                            .lineLimit(1)
+                    }
                 }
-                if allDay.count > 1 {
-                    Text("+\(allDay.count - 1) all day")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
+                .font(.system(size: 9.5))
+                .foregroundStyle(.secondary)
+                .frame(height: 12)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(7)
-            .background(selected ? Color.accentColor.opacity(0.16) : Color.clear)
-            .cornerRadius(7)
+            .frame(
+                maxWidth: .infinity,
+                minHeight: 68
+            )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
 
     private var timeGutter: some View {
         VStack(spacing: 0) {
-            ForEach(startHour..<endHour, id: \.self) { hour in
-                Text(String(format: "%02d:00", hour))
-                    .font(.caption2.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                    .frame(width: 48, height: hourHeight, alignment: .top)
-                    .id(hour)
+            ForEach(
+                startHour..<endHour,
+                id: \.self
+            ) { hour in
+                Text(
+                    DateComponents(
+                        calendar: Calendar.current,
+                        hour: hour
+                    )
+                    .date?
+                    .formatted(
+                        date: .omitted,
+                        time: .shortened
+                    ) ?? String(
+                        format: "%02d:00",
+                        hour
+                    )
+                )
+                .font(
+                    .system(
+                        size: 10,
+                        design: .monospaced
+                    )
+                )
+                .foregroundStyle(.secondary)
+                .frame(
+                    width: timeGutterWidth - 8,
+                    height: hourHeight,
+                    alignment: .topTrailing
+                )
+                .padding(.trailing, 8)
+                .id(hour)
             }
         }
         .padding(.top, 2)
     }
 
-    private func dayColumn(_ day: Date) -> some View {
-        let selected = Calendar.current.isDate(day, inSameDayAs: state.selectedDate)
+    private func dayColumn(
+        _ day: Date,
+        width: CGFloat
+    ) -> some View {
+        let selected = Calendar.current.isDate(
+            day,
+            inSameDayAs: state.selectedDate
+        )
+        let today = Calendar.current.isDateInToday(day)
         let placements = placedEvents(on: day)
-        let dayStart = Calendar.current.startOfDay(for: day)
-        let dayEnd = Calendar.current.date(byAdding: .day, value: 1, to: dayStart)
+        let dayStart =
+            Calendar.current.startOfDay(for: day)
+        let dayEnd =
+            Calendar.current.date(
+                byAdding: .day,
+                value: 1,
+                to: dayStart
+            )
             ?? dayStart.addingTimeInterval(86400)
-        let visibleStart = Calendar.current.date(byAdding: .hour, value: startHour, to: dayStart) ?? dayStart
-        let visibleEnd = Calendar.current.date(byAdding: .hour, value: endHour, to: dayStart) ?? dayEnd
+        let visibleStart =
+            Calendar.current.date(
+                byAdding: .hour,
+                value: startHour,
+                to: dayStart
+            ) ?? dayStart
+        let visibleEnd =
+            Calendar.current.date(
+                byAdding: .hour,
+                value: endHour,
+                to: dayStart
+            ) ?? dayEnd
 
         return ZStack(alignment: .topLeading) {
+            Rectangle()
+                .fill(
+                    selected
+                    ? Color.accentColor.opacity(0.025)
+                    : Color.clear
+                )
+
             VStack(spacing: 0) {
-                ForEach(0..<((endHour - startHour) * 2), id: \.self) { slot in
+                ForEach(
+                    0..<((endHour - startHour) * 2),
+                    id: \.self
+                ) { slot in
                     Button {
                         state.selectTimeSlot(
                             on: day,
@@ -2679,11 +2899,20 @@ private struct PlannerCalendarView: View {
                         )
                     } label: {
                         Rectangle()
-                            .fill(selected ? Color.accentColor.opacity(0.035) : Color.clear)
-                            .frame(width: dayWidth, height: hourHeight / 2)
+                            .fill(Color.clear)
+                            .frame(
+                                width: width,
+                                height: hourHeight / 2
+                            )
                             .overlay(alignment: .top) {
                                 Rectangle()
-                                    .fill(Color.primary.opacity(slot % 2 == 0 ? 0.14 : 0.06))
+                                    .fill(
+                                        Color.primary.opacity(
+                                            slot % 2 == 0
+                                            ? 0.10
+                                            : 0.035
+                                        )
+                                    )
                                     .frame(height: 1)
                             }
                     }
@@ -2692,68 +2921,364 @@ private struct PlannerCalendarView: View {
                 }
             }
 
-            ForEach(Array(placements.enumerated()), id: \.offset) { _, item in
-                let start = max(item.event.startDate, visibleStart)
-                let end = min(item.event.endDate, visibleEnd)
-                let offset = max(0, start.timeIntervalSince(visibleStart)) / 3600 * hourHeight
-                let height = max(23, end.timeIntervalSince(start) / 3600 * hourHeight - 2)
-                let width = (dayWidth - 4) / CGFloat(item.laneCount)
-                Button {
-                    state.selectDate(day)
-                    if item.event.calendar.allowsContentModifications {
-                        state.showEventEditor(item.event)
-                    }
-                } label: {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(item.event.title ?? "Untitled")
-                            .font(.system(size: 11, weight: .semibold))
-                            .lineLimit(2)
-                        if height >= 42 {
-                            Text(item.event.startDate.formatted(date: .omitted, time: .shortened))
-                                .font(.system(size: 10))
-                                .lineLimit(1)
-                        }
-                    }
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 3)
-                    .frame(width: width, height: height, alignment: .topLeading)
-                    .background(Color.accentColor.opacity(0.22))
-                    .overlay(alignment: .leading) {
-                        Rectangle().fill(Color.accentColor).frame(width: 3)
-                    }
-                    .cornerRadius(4)
-                }
-                .buttonStyle(.plain)
-                .help("\(item.event.title ?? "Untitled") — click to edit")
-                .offset(x: 2 + CGFloat(item.lane) * width, y: offset)
+            if today {
+                currentTimeIndicator(
+                    dayStart: dayStart,
+                    visibleStart: visibleStart,
+                    visibleEnd: visibleEnd,
+                    width: width
+                )
+            }
+
+            ForEach(
+                Array(placements.enumerated()),
+                id: \.offset
+            ) { _, item in
+                eventBlock(
+                    item,
+                    day: day,
+                    visibleStart: visibleStart,
+                    visibleEnd: visibleEnd,
+                    width: width
+                )
             }
         }
-        .frame(width: dayWidth, height: CGFloat(endHour - startHour) * hourHeight, alignment: .topLeading)
+        .frame(
+            width: width,
+            height:
+                CGFloat(endHour - startHour)
+                * hourHeight,
+            alignment: .topLeading
+        )
         .overlay(alignment: .trailing) {
-            Rectangle().fill(Color.primary.opacity(0.1)).frame(width: 1)
+            Rectangle()
+                .fill(Color.primary.opacity(0.07))
+                .frame(width: 1)
         }
     }
 
-    private func placedEvents(on day: Date) -> [Placement] {
-        let start = Calendar.current.startOfDay(for: day)
-        let end = Calendar.current.date(byAdding: .day, value: 1, to: start)
-            ?? start.addingTimeInterval(86400)
-        let events = state.weekEvents.filter {
-            !$0.isAllDay && $0.startDate < end && $0.endDate > start
+    @ViewBuilder
+    private func currentTimeIndicator(
+        dayStart: Date,
+        visibleStart: Date,
+        visibleEnd: Date,
+        width: CGFloat
+    ) -> some View {
+        let now = Date()
+
+        if now >= visibleStart && now <= visibleEnd {
+            let offset =
+                now.timeIntervalSince(visibleStart)
+                / 3600
+                * hourHeight
+
+            HStack(spacing: 0) {
+                Circle()
+                    .fill(Color.accentColor)
+                    .frame(width: 6, height: 6)
+
+                Rectangle()
+                    .fill(Color.accentColor.opacity(0.7))
+                    .frame(height: 1)
+            }
+            .frame(width: width)
+            .offset(y: max(0, offset - 3))
+            .allowsHitTesting(false)
         }
-        var active: [(Date, Int)] = []
-        var entries: [(EKEvent, Int)] = []
-        var maxLanes = 1
+    }
+
+    private func eventBlock(
+        _ placement: Placement,
+        day: Date,
+        visibleStart: Date,
+        visibleEnd: Date,
+        width: CGFloat
+    ) -> some View {
+        let start = max(
+            placement.event.startDate,
+            visibleStart
+        )
+        let end = min(
+            placement.event.endDate,
+            visibleEnd
+        )
+        let offset =
+            max(
+                0,
+                start.timeIntervalSince(
+                    visibleStart
+                )
+            )
+            / 3600
+            * hourHeight
+        let height = max(
+            25,
+            end.timeIntervalSince(start)
+            / 3600
+            * hourHeight
+            - 3
+        )
+        let gap: CGFloat = 3
+        let outerPadding: CGFloat = 4
+        let availableWidth = max(
+            44,
+            width - outerPadding * 2
+        )
+        let laneCount = max(
+            1,
+            placement.laneCount
+        )
+        let eventWidth = max(
+            40,
+            (
+                availableWidth
+                - gap * CGFloat(laneCount - 1)
+            )
+            / CGFloat(laneCount)
+        )
+        let x =
+            outerPadding
+            + CGFloat(placement.lane)
+            * (eventWidth + gap)
+        let color = eventColor(
+            placement.event
+        )
+
+        return Button {
+            state.selectDate(day)
+
+            if placement.event
+                .calendar
+                .allowsContentModifications {
+                state.showEventEditor(
+                    placement.event
+                )
+            }
+        } label: {
+            VStack(
+                alignment: .leading,
+                spacing: 1
+            ) {
+                Text(
+                    placement.event.title
+                    ?? "Untitled"
+                )
+                .font(
+                    .system(
+                        size: 10.5,
+                        weight: .semibold
+                    )
+                )
+                .lineLimit(
+                    height >= 48 ? 2 : 1
+                )
+
+                if height >= 35 {
+                    Text(
+                        placement.event.startDate
+                            .formatted(
+                                date: .omitted,
+                                time: .shortened
+                            )
+                    )
+                    .font(
+                        .system(
+                            size: 9.5,
+                            design: .monospaced
+                        )
+                    )
+                    .foregroundStyle(
+                        .secondary
+                    )
+                    .lineLimit(1)
+                }
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 4)
+            .frame(
+                width: eventWidth,
+                height: height,
+                alignment: .topLeading
+            )
+            .background(
+                RoundedRectangle(
+                    cornerRadius: 6
+                )
+                .fill(
+                    color.opacity(0.18)
+                )
+            )
+            .overlay(alignment: .leading) {
+                RoundedRectangle(
+                    cornerRadius: 2
+                )
+                .fill(color)
+                .frame(width: 3)
+                .padding(.vertical, 3)
+            }
+            .overlay {
+                RoundedRectangle(
+                    cornerRadius: 6
+                )
+                .stroke(
+                    color.opacity(0.18),
+                    lineWidth: 1
+                )
+            }
+        }
+        .buttonStyle(.plain)
+        .help(
+            "\(placement.event.title ?? "Untitled") — click to edit"
+        )
+        .offset(
+            x: x,
+            y: offset
+        )
+    }
+
+    private func eventColor(
+        _ event: EKEvent
+    ) -> Color {
+        if let cgColor = event.calendar.cgColor,
+           let nsColor = NSColor(
+            cgColor: cgColor
+           ) {
+            return Color(nsColor: nsColor)
+        }
+
+        return Color.accentColor
+    }
+
+    private func placedEvents(
+        on day: Date
+    ) -> [Placement] {
+        let start =
+            Calendar.current.startOfDay(
+                for: day
+            )
+        let end =
+            Calendar.current.date(
+                byAdding: .day,
+                value: 1,
+                to: start
+            )
+            ?? start.addingTimeInterval(
+                86400
+            )
+
+        let events = state.weekEvents
+            .filter {
+                !$0.isAllDay
+                && $0.startDate < end
+                && $0.endDate > start
+            }
+            .sorted {
+                if $0.startDate
+                    != $1.startDate {
+                    return $0.startDate
+                        < $1.startDate
+                }
+                return $0.endDate
+                    < $1.endDate
+            }
+
+        var result: [Placement] = []
+        var cluster: [EKEvent] = []
+        var clusterEnd: Date?
+
+        func appendCluster(
+            _ events: [EKEvent]
+        ) {
+            guard !events.isEmpty else {
+                return
+            }
+
+            var laneEnds: [Date] = []
+            var assigned:
+                [(event: EKEvent, lane: Int)]
+                = []
+
+            for event in events {
+                var lane =
+                    laneEnds.firstIndex {
+                        $0 <= event.startDate
+                    }
+
+                if lane == nil {
+                    laneEnds.append(
+                        event.endDate
+                    )
+                    lane =
+                        laneEnds.count - 1
+                } else if let lane {
+                    laneEnds[lane] =
+                        event.endDate
+                }
+
+                assigned.append(
+                    (
+                        event,
+                        lane ?? 0
+                    )
+                )
+            }
+
+            let laneCount =
+                max(1, laneEnds.count)
+
+            for item in assigned {
+                result.append(
+                    Placement(
+                        event: item.event,
+                        lane: item.lane,
+                        laneCount: laneCount
+                    )
+                )
+            }
+        }
+
         for event in events {
-            active.removeAll { $0.0 <= event.startDate }
-            let used = Set(active.map { $0.1 })
-            var lane = 0
-            while used.contains(lane) { lane += 1 }
-            active.append((event.endDate, lane))
-            entries.append((event, lane))
-            maxLanes = max(maxLanes, active.count)
+            if let clusterEnd,
+               event.startDate
+                >= clusterEnd {
+                appendCluster(cluster)
+                cluster.removeAll(
+                    keepingCapacity: true
+                )
+                selfAssign(
+                    &clusterEnd,
+                    nil
+                )
+            }
+
+            cluster.append(event)
+
+            if let existing =
+                clusterEnd {
+                selfAssign(
+                    &clusterEnd,
+                    max(
+                        existing,
+                        event.endDate
+                    )
+                )
+            } else {
+                selfAssign(
+                    &clusterEnd,
+                    event.endDate
+                )
+            }
         }
-        return entries.map { Placement(event: $0.0, lane: $0.1, laneCount: maxLanes) }
+
+        appendCluster(cluster)
+        return result
+    }
+
+    private func selfAssign<T>(
+        _ value: inout T,
+        _ newValue: T
+    ) {
+        value = newValue
     }
 }
 
