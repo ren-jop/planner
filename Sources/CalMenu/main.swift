@@ -103,6 +103,220 @@ enum PlannerAIError: LocalizedError {
     }
 }
 
+enum PlannerRecurrenceKind: String, Hashable {
+    case none
+    case daily
+    case weekdays
+    case weekly
+    case monthly
+    case yearly
+
+    var title: String {
+        switch self {
+        case .none: return "Never"
+        case .daily: return "Daily"
+        case .weekdays: return "Every weekday"
+        case .weekly: return "Weekly"
+        case .monthly: return "Monthly"
+        case .yearly: return "Yearly"
+        }
+    }
+
+    var frequency: EKRecurrenceFrequency? {
+        switch self {
+        case .none:
+            return nil
+        case .daily:
+            return .daily
+        case .weekdays, .weekly:
+            return .weekly
+        case .monthly:
+            return .monthly
+        case .yearly:
+            return .yearly
+        }
+    }
+}
+
+enum PlannerRecurrenceEndKind: String, Hashable {
+    case never
+    case date
+    case count
+
+    var title: String {
+        switch self {
+        case .never: return "Never"
+        case .date: return "On date"
+        case .count: return "After count"
+        }
+    }
+}
+
+enum PlannerEventEditScope: String, Hashable {
+    case thisEvent
+    case futureEvents
+
+    var title: String {
+        switch self {
+        case .thisEvent: return "This event"
+        case .futureEvents: return "This and future events"
+        }
+    }
+
+    var eventKitSpan: EKSpan {
+        switch self {
+        case .thisEvent: return .thisEvent
+        case .futureEvents: return .futureEvents
+        }
+    }
+}
+
+enum PlannerEventAvailabilityChoice: String, Hashable {
+    case busy
+    case free
+    case tentative
+    case unavailable
+
+    init(_ value: EKEventAvailability) {
+        switch value {
+        case .free:
+            self = .free
+        case .tentative:
+            self = .tentative
+        case .unavailable:
+            self = .unavailable
+        default:
+            self = .busy
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .busy: return "Busy"
+        case .free: return "Free"
+        case .tentative: return "Tentative"
+        case .unavailable: return "Unavailable"
+        }
+    }
+
+    var eventKitValue: EKEventAvailability {
+        switch self {
+        case .busy: return .busy
+        case .free: return .free
+        case .tentative: return .tentative
+        case .unavailable: return .unavailable
+        }
+    }
+}
+
+private func plannerRecurrenceEnd(
+    kind: PlannerRecurrenceEndKind,
+    date: Date,
+    count: Int
+) -> EKRecurrenceEnd? {
+    switch kind {
+    case .never:
+        return nil
+    case .date:
+        return EKRecurrenceEnd(end: date)
+    case .count:
+        return EKRecurrenceEnd(
+            occurrenceCount: max(1, count)
+        )
+    }
+}
+
+private func plannerRecurrenceRule(
+    kind: PlannerRecurrenceKind,
+    interval: Int,
+    endKind: PlannerRecurrenceEndKind,
+    endDate: Date,
+    occurrenceCount: Int
+) -> EKRecurrenceRule? {
+    guard let frequency = kind.frequency else {
+        return nil
+    }
+
+    let end = plannerRecurrenceEnd(
+        kind: endKind,
+        date: endDate,
+        count: occurrenceCount
+    )
+    let safeInterval = max(1, interval)
+
+    if kind == .weekdays {
+        return EKRecurrenceRule(
+            recurrenceWith: .weekly,
+            interval: safeInterval,
+            daysOfTheWeek: [
+                EKRecurrenceDayOfWeek(.monday),
+                EKRecurrenceDayOfWeek(.tuesday),
+                EKRecurrenceDayOfWeek(.wednesday),
+                EKRecurrenceDayOfWeek(.thursday),
+                EKRecurrenceDayOfWeek(.friday),
+            ],
+            daysOfTheMonth: nil,
+            monthsOfTheYear: nil,
+            weeksOfTheYear: nil,
+            daysOfTheYear: nil,
+            setPositions: nil,
+            end: end
+        )
+    }
+
+    return EKRecurrenceRule(
+        recurrenceWith: frequency,
+        interval: safeInterval,
+        end: end
+    )
+}
+
+private func plannerRecurrenceKind(
+    from rule: EKRecurrenceRule?
+) -> PlannerRecurrenceKind {
+    guard let rule else {
+        return .none
+    }
+
+    switch rule.frequency {
+    case .daily:
+        return .daily
+    case .weekly:
+        let weekdays = Set(
+            rule.daysOfTheWeek?
+                .map { $0.dayOfTheWeek.rawValue }
+            ?? []
+        )
+        if weekdays == Set([2, 3, 4, 5, 6]) {
+            return .weekdays
+        }
+        return .weekly
+    case .monthly:
+        return .monthly
+    case .yearly:
+        return .yearly
+    @unknown default:
+        return .none
+    }
+}
+
+private func plannerAlertMinutes(
+    from event: EKCalendarItem
+) -> [Int] {
+    (event.alarms ?? [])
+        .filter { $0.absoluteDate == nil }
+        .map {
+            Int(
+                round(
+                    -$0.relativeOffset
+                    / 60
+                )
+            )
+        }
+        .filter { $0 >= 0 }
+        .sorted()
+}
+
 actor PlannerIntelligenceEngine {
     static func backendDescription() -> String {
         "Local suggestions from calendar gaps and recent Focus sessions"
