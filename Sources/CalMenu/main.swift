@@ -1252,6 +1252,7 @@ final class CalendarMenuState: NSObject, ObservableObject {
             reloadUpcomingBlocks()
             reloadGoalEvents()
             loadFocusHistory()
+            evaluateFocusSchedule()
         } catch {
             accessDenied = true
             statusMessage = error.localizedDescription
@@ -2687,6 +2688,7 @@ final class CalendarMenuState: NSObject, ObservableObject {
         reloadOverviewData()
         reloadVisibleData()
         reloadWeekEvents()
+        evaluateFocusSchedule()
     }
 
     func startFocus(
@@ -2864,7 +2866,7 @@ final class CalendarMenuState: NSObject, ObservableObject {
                 x: 0,
                 y: 0,
                 width: 430,
-                height: 360
+                height: 410
             ),
             styleMask: [
                 .titled,
@@ -6866,37 +6868,12 @@ struct CalendarSettingsView: View {
                 }
 
                 settingsCard(
-                    title: "Time blocks",
+                    title: "Focus Blocks",
                     subtitle:
-                        "Assigned blocks can live in one calendar while the week view shows several."
+                        "New Focus Blocks use this default calendar. Focus Blocks can exist across any visible calendar and start Focus + deadlock automatically."
                 ) {
                     Picker(
-                        "Assigned blocks",
-                        selection: Binding(
-                            get: {
-                                state.futureCalendarID
-                            },
-                            set: {
-                                state.setFutureCalendarID(
-                                    $0
-                                )
-                            }
-                        )
-                    ) {
-                        ForEach(
-                            state.calendars,
-                            id: \.calendarIdentifier
-                        ) { calendar in
-                            Text(calendar.title)
-                                .tag(
-                                    calendar
-                                        .calendarIdentifier
-                                )
-                        }
-                    }
-
-                    Picker(
-                        "New blocks",
+                        "Default calendar",
                         selection: Binding(
                             get: {
                                 state.selectedCalendarID
@@ -7138,32 +7115,71 @@ private struct EventEditorView: View {
     let onClose: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Edit event")
-                .font(
-                    .system(
-                        size: 18,
-                        weight: .semibold,
-                        design: .rounded
+        VStack(
+            alignment: .leading,
+            spacing: 14
+        ) {
+            HStack {
+                Text("Edit event")
+                    .font(
+                        .system(
+                            size: 18,
+                            weight: .semibold,
+                            design: .rounded
+                        )
                     )
-                )
 
-            TextField("Title", text: $model.title)
-                .textFieldStyle(.roundedBorder)
+                Spacer()
 
-            Toggle("All day", isOn: $model.allDay)
+                if model.focusBlock {
+                    Label(
+                        "Focus Block",
+                        systemImage: "lock.fill"
+                    )
+                    .font(.caption2)
+                    .foregroundStyle(
+                        .secondary
+                    )
+                }
+            }
+
+            TextField(
+                "Title",
+                text: $model.title
+            )
+            .textFieldStyle(
+                .roundedBorder
+            )
+
+            Toggle(
+                "All day",
+                isOn: $model.allDay
+            )
+
+            Toggle(
+                "Focus Block · auto-start Focus + deadlock",
+                isOn: $model.focusBlock
+            )
+            .disabled(model.allDay)
+            .help(
+                "When this event begins, Planner starts Focus for the remaining scheduled time. Focus activates deadlock distraction protection."
+            )
 
             if model.allDay {
                 DatePicker(
                     "Start",
                     selection: $model.start,
-                    displayedComponents: [.date]
+                    displayedComponents: [
+                        .date
+                    ]
                 )
 
                 DatePicker(
                     "End",
                     selection: $model.end,
-                    displayedComponents: [.date]
+                    displayedComponents: [
+                        .date
+                    ]
                 )
             } else {
                 DatePicker(
@@ -7187,22 +7203,32 @@ private struct EventEditorView: View {
 
             Picker(
                 "Calendar",
-                selection: $model.calendarID
+                selection:
+                    $model.calendarID
             ) {
                 ForEach(
                     state.writableCalendars,
-                    id: \.calendarIdentifier
+                    id:
+                        .calendarIdentifier
                 ) { calendar in
                     Text(calendar.title)
-                        .tag(calendar.calendarIdentifier)
+                        .tag(
+                            calendar
+                                .calendarIdentifier
+                        )
                 }
             }
 
-            if !state.statusMessage.isEmpty {
-                Text(state.statusMessage)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+            if !state.statusMessage
+                .isEmpty {
+                Text(
+                    state.statusMessage
+                )
+                .font(.caption)
+                .foregroundStyle(
+                    .secondary
+                )
+                .lineLimit(2)
             }
 
             HStack {
@@ -7218,13 +7244,20 @@ private struct EventEditorView: View {
                         title: model.title,
                         start: model.start,
                         end: model.end,
-                        allDay: model.allDay,
-                        calendarID: model.calendarID
+                        allDay:
+                            model.allDay,
+                        calendarID:
+                            model.calendarID,
+                        focusBlock:
+                            !model.allDay
+                            && model.focusBlock
                     ) {
                         onClose()
                     }
                 }
-                .keyboardShortcut(.defaultAction)
+                .keyboardShortcut(
+                    .defaultAction
+                )
             }
         }
         .padding(20)
