@@ -6342,209 +6342,206 @@ private struct PlannerBlocksView: View {
 
     var body: some View {
         HSplitView {
+            focusList
+                .frame(minWidth: 600)
+
+            composer
+                .frame(
+                    minWidth: 330,
+                    idealWidth: 360,
+                    maxWidth: 400
+                )
+        }
+        .onAppear {
+            state.draftIsFocusBlock = true
+            state.reloadUpcomingBlocks()
+        }
+    }
+
+    private var focusList: some View {
+        VStack(
+            alignment: .leading,
+            spacing: 12
+        ) {
+            focusHeader
+            focusContent
+        }
+        .padding(20)
+    }
+
+    private var focusHeader: some View {
+        HStack {
             VStack(
                 alignment: .leading,
-                spacing: 12
+                spacing: 2
             ) {
-                HStack {
-                    VStack(
-                        alignment: .leading,
-                        spacing: 2
-                    ) {
-                        Text("Focus Blocks")
-                            .font(
-                                .system(
-                                    size: 21,
-                                    weight:
-                                        .semibold,
-                                    design:
-                                        .rounded
-                                )
-                            )
-
-                        Text(
-                            "Scheduled work that automatically starts Focus and deadlock."
-                        )
-                        .font(.caption)
-                        .foregroundStyle(
-                            .secondary
-                        )
-                    }
-
-                    Spacer()
-
-                    Text(
-                        "\(state.upcomingBlocks.count)"
-                    )
+                Text("Focus Blocks")
                     .font(
-                        .caption
-                            .monospacedDigit()
+                        .system(
+                            size: 21,
+                            weight: .semibold,
+                            design: .rounded
+                        )
                     )
-                    .foregroundStyle(
-                        .secondary
-                    )
-                }
 
-                if state.upcomingBlocks.isEmpty {
-                    VStack(spacing: 8) {
-                        Image(
-                            systemName:
-                                "lock.clock"
-                        )
-                        .font(
-                            .system(size: 24)
-                        )
-                        .foregroundStyle(
-                            .secondary
-                        )
+                Text(
+                    "Scheduled work that starts Focus and deadlock automatically."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
 
-                        Text(
-                            "No upcoming Focus Blocks"
-                        )
-                        .font(.callout)
+            Spacer()
 
-                        Text(
-                            "Create one on the calendar or use the form on the right."
-                        )
-                        .font(.caption)
-                        .foregroundStyle(
-                            .secondary
-                        )
-                    }
-                    .frame(
-                        maxWidth: .infinity,
-                        maxHeight: .infinity
-                    )
-                } else {
-                    ScrollView {
-                        LazyVStack(
-                            spacing: 7
-                        ) {
-                            ForEach(
-                                state.upcomingBlocks,
-                                id:
-                                    .calendarItemIdentifier
-                            ) { event in
-                                HStack(
-                                    spacing: 10
-                                ) {
-                                    Image(
-                                        systemName:
-                                            "lock.fill"
-                                    )
-                                    .font(
-                                        .system(
-                                            size: 9
-                                        )
-                                    )
-                                    .foregroundStyle(
-                                        .secondary
-                                    )
+            Text(
+                String(
+                    state.upcomingBlocks.count
+                )
+            )
+            .font(
+                .caption
+                    .monospacedDigit()
+            )
+            .foregroundStyle(.secondary)
+        }
+    }
 
-                                    VStack(
-                                        alignment:
-                                            .leading,
-                                        spacing: 2
-                                    ) {
-                                        Text(
-                                            event.title
-                                            ?? "Untitled"
-                                        )
-                                        .font(
-                                            .system(
-                                                size: 13,
-                                                weight:
-                                                    .medium
-                                            )
-                                        )
-                                        .lineLimit(1)
-
-                                        Text(
-                                            focusBlockRange(
-                                                event
-                                            )
-                                        )
-                                        .font(
-                                            .caption2
-                                                .monospacedDigit()
-                                        )
-                                        .foregroundStyle(
-                                            .secondary
-                                        )
-                                    }
-
-                                    Spacer()
-
-                                    if event
-                                        .calendar
-                                        .allowsContentModifications {
-                                        Button {
-                                            state.showEventEditor(
-                                                event
-                                            )
-                                        } label: {
-                                            Image(
-                                                systemName:
-                                                    "pencil"
-                                            )
-                                        }
-                                        .buttonStyle(.plain)
-                                    }
-
-                                    if !event.isAllDay,
-                                       event.endDate
-                                        > Date() {
-                                        Button {
-                                            state.startFocus(
-                                                for: event
-                                            )
-                                        } label: {
-                                            Image(
-                                                systemName:
-                                                    "timer"
-                                            )
-                                        }
-                                        .buttonStyle(.plain)
-                                        .help(
-                                            "Start now"
-                                        )
-                                    }
-                                }
-                                .padding(
-                                    .horizontal,
-                                    11
-                                )
-                                .padding(
-                                    .vertical,
-                                    9
-                                )
-                                .background {
-                                    RoundedRectangle(
-                                        cornerRadius: 9
-                                    )
-                                    .fill(
-                                        Color.primary
-                                            .opacity(
-                                                0.032
-                                            )
-                                    )
-                                }
-                            }
-                        }
+    @ViewBuilder
+    private var focusContent: some View {
+        if state.upcomingBlocks.isEmpty {
+            emptyState
+        } else {
+            ScrollView {
+                LazyVStack(spacing: 7) {
+                    ForEach(
+                        state.upcomingBlocks,
+                        id: \.calendarItemIdentifier
+                    ) { event in
+                        focusRow(event)
                     }
                 }
             }
-            .padding(20)
-            .frame(minWidth: 600)
+        }
+    }
 
-            VStack(spacing: 0) {
-                VStack(
-                    alignment: .leading,
-                    spacing: 4
-                ) {
-                    Text(
-                        "New Focus Block"
+    private var emptyState: some View {
+        VStack(spacing: 8) {
+            Image(
+                systemName: "lock.clock"
+            )
+            .font(.system(size: 24))
+            .foregroundStyle(.secondary)
+
+            Text("No upcoming Focus Blocks")
+                .font(.callout)
+
+            Text(
+                "Create one on the calendar or use the form on the right."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        .frame(
+            maxWidth: .infinity,
+            maxHeight: .infinity
+        )
+    }
+
+    private func focusRow(
+        _ event: EKEvent
+    ) -> some View {
+        HStack(spacing: 10) {
+            Image(
+                systemName: "lock.fill"
+            )
+            .font(.system(size: 9))
+            .foregroundStyle(.secondary)
+
+            VStack(
+                alignment: .leading,
+                spacing: 2
+            ) {
+                Text(
+                    event.title
+                    ?? "Untitled"
+                )
+                .font(
+                    .system(
+                        size: 13,
+                        weight: .medium
                     )
+                )
+                .lineLimit(1)
+
+                Text(
+                    focusBlockRange(event)
+                )
+                .font(
+                    .caption2
+                        .monospacedDigit()
+                )
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            }
+
+            Spacer()
+
+            if event.calendar
+                .allowsContentModifications {
+                Button {
+                    state.showEventEditor(
+                        event
+                    )
+                } label: {
+                    Image(
+                        systemName: "pencil"
+                    )
+                }
+                .buttonStyle(.plain)
+                .help("Edit")
+            }
+
+            if !event.isAllDay,
+               event.endDate > Date() {
+                Button {
+                    state.startFocus(
+                        for: event
+                    )
+                } label: {
+                    Image(
+                        systemName: "timer"
+                    )
+                }
+                .buttonStyle(.plain)
+                .help("Start now")
+            }
+        }
+        .padding(
+            .horizontal,
+            11
+        )
+        .padding(
+            .vertical,
+            9
+        )
+        .background {
+            RoundedRectangle(
+                cornerRadius: 9
+            )
+            .fill(
+                Color.primary
+                    .opacity(0.032)
+            )
+        }
+    }
+
+    private var composer: some View {
+        VStack(spacing: 0) {
+            VStack(
+                alignment: .leading,
+                spacing: 4
+            ) {
+                Text("New Focus Block")
                     .font(
                         .system(
                             size: 16,
@@ -6552,38 +6549,26 @@ private struct PlannerBlocksView: View {
                         )
                     )
 
-                    Text(
-                        "Saved to Apple Calendar. It will start Focus and distraction protection automatically."
-                    )
-                    .font(.caption)
-                    .foregroundStyle(
-                        .secondary
-                    )
-                }
-                .frame(
-                    maxWidth: .infinity,
-                    alignment: .leading
+                Text(
+                    "Saved to Apple Calendar. Focus and distraction protection begin automatically."
                 )
-                .padding(18)
-
-                Divider()
-
-                ScrollView {
-                    QuickAddView(
-                        state: state
-                    )
-                    .padding(18)
-                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
             .frame(
-                minWidth: 330,
-                idealWidth: 360,
-                maxWidth: 400
+                maxWidth: .infinity,
+                alignment: .leading
             )
-        }
-        .onAppear {
-            state.draftIsFocusBlock = true
-            state.reloadUpcomingBlocks()
+            .padding(18)
+
+            Divider()
+
+            ScrollView {
+                QuickAddView(
+                    state: state
+                )
+                .padding(18)
+            }
         }
     }
 
