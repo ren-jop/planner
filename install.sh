@@ -75,6 +75,10 @@ pgrep -f '/Applications/Planner.app/Contents/MacOS/calmenu' >/dev/null 2>&1 || {
   exit 1
 }
 
+VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist" 2>/dev/null || true)"
+
 echo
 echo "Installed and running: $APP"
+[[ -n "$VERSION" ]] && echo "Planner version: $VERSION"
+echo "Background Focus Block scheduling: enabled by local.ren.planner"
 echo "If macOS asks for Calendar access, choose Allow Full Access."
