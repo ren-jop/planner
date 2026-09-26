@@ -1132,7 +1132,15 @@ final class CalendarMenuState: NSObject, ObservableObject {
             return
         }
 
-        guard event.endDate > Date() else {
+        guard let eventStart = event.startDate,
+              let eventEnd = event.endDate
+        else {
+            statusMessage =
+                "That event does not have a valid time range."
+            return
+        }
+
+        guard eventEnd > Date() else {
             statusMessage = "That event has already ended."
             return
         }
@@ -1149,14 +1157,14 @@ final class CalendarMenuState: NSObject, ObservableObject {
         let now = Date()
         let rawSeconds: Int
 
-        if event.startDate <= now {
+        if eventStart <= now {
             rawSeconds = Int(
-                event.endDate.timeIntervalSince(now).rounded(.up)
+                eventEnd.timeIntervalSince(now).rounded(.up)
             )
         } else {
             rawSeconds = Int(
-                event.endDate
-                    .timeIntervalSince(event.startDate)
+                eventEnd
+                    .timeIntervalSince(eventStart)
                     .rounded(.up)
             )
         }
@@ -1171,8 +1179,6 @@ final class CalendarMenuState: NSObject, ObservableObject {
         let focusTitle = title.isEmpty
             ? "Calendar block"
             : title
-        let eventStart = event.startDate
-        let eventEnd = event.endDate
         let eventID = event.calendarItemIdentifier
 
         DispatchQueue.global(
