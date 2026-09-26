@@ -2,7 +2,7 @@
 
 A small macOS planning app built around Apple Calendar.
 
-**Status:** v0.11.0 preview
+**Status:** v0.12.0 preview
 
 **Platform:** macOS 14+
 
@@ -51,6 +51,27 @@ macOS will ask for Calendar access on first use.
 - Includes a local Suggestions workspace that notices useful free windows from Apple Calendar, upcoming goals and recent Focus history.
 - Suggestions are deterministic and local; there is no model prompt or Apple Intelligence dependency.
 - Suggestions never write directly to Apple Calendar. Using one only opens the normal editable draft, which you still choose whether to save.
+
+## 0.12.0 Calendar parity
+
+Planner now writes richer events directly through EventKit so changes sync through the same Apple Calendar accounts instead of living in a separate database.
+
+New event support includes:
+
+- recurring events: daily, weekdays, weekly, monthly and yearly;
+- custom recurrence intervals plus never/date/count recurrence endings;
+- editing one occurrence or this-and-future occurrences of a recurring series;
+- deleting one occurrence or this-and-future occurrences;
+- all-day events;
+- event location, notes and URL;
+- floating or named IANA time zones;
+- Busy / Free / Tentative / Unavailable availability;
+- two relative alerts;
+- preserving existing custom recurrence rules and alarms unless their controls are changed;
+- live external-change refresh through `EKEventStoreChanged`;
+- recurring Focus Blocks keyed by the server-provided external event identifier so they survive occurrence expansion and are more resilient to calendar sync.
+
+Apple's public EventKit API does not allow Planner to be literally identical to Calendar. In particular, invitee/organizer editing, account setup/subscriptions, and some Calendar-only meeting/travel features remain owned by Apple's Calendar UI. Planner preserves those fields when it edits other event data.
 
 ## 0.11.0 Focus Blocks
 
