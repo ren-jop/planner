@@ -4783,13 +4783,28 @@ private struct PlannerCalendarView: View {
                                         .leading
                                 )
                             }
+                            .frame(
+                                maxHeight: .infinity,
+                                alignment: .top
+                            )
                             .onAppear {
                                 scrollToUsefulHour(
                                     proxy
                                 )
                             }
                         }
+                        .frame(
+                            maxHeight: .infinity,
+                            alignment: .top
+                        )
                     }
+                    .frame(
+                        minWidth:
+                            geometry.size.width,
+                        height:
+                            geometry.size.height,
+                        alignment: .top
+                    )
                 }
             }
         }
@@ -4964,7 +4979,7 @@ private struct PlannerCalendarView: View {
         return Button {
             state.selectDate(day)
         } label: {
-            VStack(spacing: 5) {
+            VStack(spacing: 3) {
                 Text(
                     day.formatted(
                         .dateTime
@@ -4974,7 +4989,7 @@ private struct PlannerCalendarView: View {
                 )
                 .font(
                     .system(
-                        size: 9.5,
+                        size: 9,
                         weight: .medium
                     )
                 )
@@ -4987,7 +5002,7 @@ private struct PlannerCalendarView: View {
                 )
                 .font(
                     .system(
-                        size: 17,
+                        size: 14,
                         weight:
                             selected
                             ? .bold
@@ -4996,8 +5011,8 @@ private struct PlannerCalendarView: View {
                     )
                 )
                 .frame(
-                    width: 30,
-                    height: 26
+                    width: 24,
+                    height: 22
                 )
                 .background {
                     Circle()
@@ -5024,10 +5039,10 @@ private struct PlannerCalendarView: View {
                     allDay
                 )
             }
-            .padding(.vertical, 7)
+            .padding(.vertical, 4)
             .frame(
                 maxWidth: .infinity,
-                minHeight: 76
+                height: 60
             )
             .background(
                 selected
