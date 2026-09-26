@@ -88,6 +88,7 @@ final class CalendarMenuState: NSObject, ObservableObject {
     private let previewCalendarDefaultsKey = "calmenu.monthPreviewCalendarID"
     private let defaultCalendarDefaultsKey = "calmenu.defaultCreateCalendarID"
     private let futureCalendarDefaultsKey = "calmenu.futureCalendarID"
+    private let visibleCalendarsDefaultsKey = "calmenu.visibleCalendarIDs"
 
     @Published var accessGranted = false
     @Published var accessDenied = false
@@ -97,6 +98,7 @@ final class CalendarMenuState: NSObject, ObservableObject {
     @Published var selectedCalendarID = ""
     @Published var monthPreviewCalendarID = ""
     @Published var futureCalendarID = ""
+    @Published var visibleCalendarIDs: Set<String> = []
     @Published var plannerPanel = "calendar"
     @Published private(set) var weekEvents: [EKEvent] = []
 
@@ -236,6 +238,26 @@ final class CalendarMenuState: NSObject, ObservableObject {
         calendars.filter(\.allowsContentModifications)
     }
 
+    var visibleCalendars: [EKCalendar] {
+        calendars.filter {
+            visibleCalendarIDs.contains(
+                $0.calendarIdentifier
+            )
+        }
+    }
+
+    var visibleCalendarCount: Int {
+        visibleCalendars.count
+    }
+
+    func isCalendarVisible(
+        _ calendar: EKCalendar
+    ) -> Bool {
+        visibleCalendarIDs.contains(
+            calendar.calendarIdentifier
+        )
+    }
+
     var monthPreviewCalendarName: String {
         calendars.first(where: {
             $0.calendarIdentifier == monthPreviewCalendarID
@@ -298,6 +320,36 @@ final class CalendarMenuState: NSObject, ObservableObject {
         let savedCreateID = defaults.string(forKey: defaultCalendarDefaultsKey)
         let savedPreviewID = defaults.string(forKey: previewCalendarDefaultsKey)
         let savedFutureID = defaults.string(forKey: futureCalendarDefaultsKey)
+        let availableIDs = Set(
+            available.map(\.calendarIdentifier)
+        )
+        let savedVisibleIDs = Set(
+            defaults.stringArray(
+                forKey: visibleCalendarsDefaultsKey
+            ) ?? []
+        )
+
+        if visibleCalendarIDs.isEmpty {
+            let restored =
+                savedVisibleIDs.intersection(
+                    availableIDs
+                )
+            visibleCalendarIDs =
+                restored.isEmpty
+                ? availableIDs
+                : restored
+        } else {
+            visibleCalendarIDs =
+                visibleCalendarIDs.intersection(
+                    availableIDs
+                )
+
+            if visibleCalendarIDs.isEmpty,
+               !availableIDs.isEmpty {
+                visibleCalendarIDs =
+                    availableIDs
+            }
+        }
 
         if selectedCalendarID.isEmpty ||
             !available.contains(where: { $0.calendarIdentifier == selectedCalendarID }) {
@@ -347,9 +399,100 @@ final class CalendarMenuState: NSObject, ObservableObject {
     func setMonthPreviewCalendarID(_ id: String) {
         guard monthPreviewCalendarID != id else { return }
         monthPreviewCalendarID = id
-        UserDefaults.standard.set(id, forKey: previewCalendarDefaultsKey)
-        reloadVisibleData()
+        UserDefaults.standard.set(
+            id,
+            forKey: previewCalendarDefaultsKey
+        )
         reloadGoalEvents()
+    }
+
+    func setCalendarVisible(
+        _ id: String,
+        visible: Bool
+    ) {
+        guard calendars.contains(
+            where: {
+                $0.calendarIdentifier == id
+            }
+        ) else {
+            return
+        }
+
+        var next = visibleCalendarIDs
+
+        if visible {
+            next.insert(id)
+        } else {
+            guard next.count > 1 else {
+                statusMessage =
+                    "Keep at least one calendar visible."
+                return
+            }
+            next.remove(id)
+        }
+
+        guard next != visibleCalendarIDs else {
+            return
+        }
+
+        visibleCalendarIDs = next
+        persistVisibleCalendars()
+        reloadVisibleData()
+        reloadWeekEvents()
+    }
+
+    func toggleCalendarVisibility(
+        _ calendar: EKCalendar
+    ) {
+        setCalendarVisible(
+            calendar.calendarIdentifier,
+            visible: !isCalendarVisible(calendar)
+        )
+    }
+
+    func showAllCalendars() {
+        let all = Set(
+            calendars.map(\.calendarIdentifier)
+        )
+        guard all != visibleCalendarIDs else {
+            return
+        }
+        visibleCalendarIDs = all
+        persistVisibleCalendars()
+        reloadVisibleData()
+        reloadWeekEvents()
+    }
+
+    func showOnlyCalendar(
+        _ calendar: EKCalendar
+    ) {
+        visibleCalendarIDs = [
+            calendar.calendarIdentifier
+        ]
+        persistVisibleCalendars()
+        reloadVisibleData()
+        reloadWeekEvents()
+    }
+
+    private func persistVisibleCalendars() {
+        UserDefaults.standard.set(
+            Array(visibleCalendarIDs).sorted(),
+            forKey: visibleCalendarsDefaultsKey
+        )
+    }
+
+    private func ensureCalendarVisible(
+        _ calendar: EKCalendar
+    ) {
+        guard !isCalendarVisible(calendar)
+        else {
+            return
+        }
+
+        visibleCalendarIDs.insert(
+            calendar.calendarIdentifier
+        )
+        persistVisibleCalendars()
     }
 
     func setDefaultCreateCalendarID(_ id: String) {
@@ -512,7 +655,7 @@ final class CalendarMenuState: NSObject, ObservableObject {
         let predicate = store.predicateForEvents(
             withStart: monthStart,
             end: monthEnd,
-            calendars: nil
+            calendars: visibleCalendars
         )
 
         let events = store.events(matching: predicate)
@@ -537,9 +680,7 @@ final class CalendarMenuState: NSObject, ObservableObject {
 
             while day <= finalDay {
                 allGrouped[day, default: []].append(event)
-                if event.calendar.calendarIdentifier == monthPreviewCalendarID {
-                    previewGrouped[day, default: []].append(event)
-                }
+                previewGrouped[day, default: []].append(event)
                 guard let next = calendar.date(byAdding: .day, value: 1, to: day)
                 else { break }
                 day = next
@@ -720,7 +861,9 @@ final class CalendarMenuState: NSObject, ObservableObject {
               let end = calendar.date(byAdding: .day, value: 7, to: weekStart)
         else { weekEvents = []; return }
         let predicate = store.predicateForEvents(
-            withStart: weekStart, end: end, calendars: nil
+            withStart: weekStart,
+            end: end,
+            calendars: visibleCalendars
         )
         weekEvents = store.events(matching: predicate).sorted {
             if $0.startDate != $1.startDate { return $0.startDate < $1.startDate }
@@ -791,6 +934,8 @@ final class CalendarMenuState: NSObject, ObservableObject {
             statusMessage = "Choose a writable calendar."
             return
         }
+
+        ensureCalendarVisible(target)
 
         let event = EKEvent(eventStore: store)
         event.title = trimmed
@@ -868,6 +1013,8 @@ final class CalendarMenuState: NSObject, ObservableObject {
             normalizedStart = start
             normalizedEnd = end
         }
+
+        ensureCalendarVisible(target)
 
         event.title = trimmed
         event.startDate = normalizedStart
@@ -1161,8 +1308,8 @@ final class CalendarMenuState: NSObject, ObservableObject {
             contentRect: NSRect(
                 x: 0,
                 y: 0,
-                width: 1220,
-                height: 780
+                width: 1380,
+                height: 840
             ),
             styleMask: [
                 .titled,
@@ -1176,7 +1323,7 @@ final class CalendarMenuState: NSObject, ObservableObject {
 
         window.title = "Planner"
         window.contentViewController = controller
-        window.minSize = NSSize(width: 1000, height: 660)
+        window.minSize = NSSize(width: 1120, height: 700)
         window.isReleasedWhenClosed = false
         window.center()
 
@@ -1205,8 +1352,8 @@ final class CalendarMenuState: NSObject, ObservableObject {
             contentRect: NSRect(
                 x: 0,
                 y: 0,
-                width: 440,
-                height: 360
+                width: 500,
+                height: 560
             ),
             styleMask: [
                 .titled,
