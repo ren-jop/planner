@@ -3976,6 +3976,7 @@ private struct QuickAddView: View {
                 ) {
                     Text(
                         state.draftIsFocusBlock
+                        && !state.draftAllDay
                         ? "Focus Block"
                         : "Calendar event"
                     )
@@ -3987,14 +3988,13 @@ private struct QuickAddView: View {
                         )
                     )
 
-                    if state.draftIsFocusBlock {
+                    if state.draftIsFocusBlock
+                        && !state.draftAllDay {
                         Text(
                             "Focus + deadlock start automatically at the scheduled time."
                         )
                         .font(.caption2)
-                        .foregroundStyle(
-                            .secondary
-                        )
+                        .foregroundStyle(.secondary)
                         .fixedSize(
                             horizontal: false,
                             vertical: true
@@ -4008,11 +4008,12 @@ private struct QuickAddView: View {
                     "",
                     isOn:
                         $state
-                        .draftIsFocusBlock
+                            .draftIsFocusBlock
                 )
                 .labelsHidden()
                 .toggleStyle(.switch)
                 .controlSize(.mini)
+                .disabled(state.draftAllDay)
                 .help(
                     "Mark this event as a Focus Block"
                 )
@@ -4024,45 +4025,166 @@ private struct QuickAddView: View {
             )
             .textFieldStyle(.roundedBorder)
 
+            Toggle(
+                "All day",
+                isOn: Binding(
+                    get: {
+                        state.draftAllDay
+                    },
+                    set: { value in
+                        state.draftAllDay =
+                            value
+                        if value {
+                            state.draftIsFocusBlock =
+                                false
+                        }
+                    }
+                )
+            )
+
             VStack(spacing: 8) {
                 DatePicker(
                     "Start",
                     selection:
                         $state.draftStart,
-                    displayedComponents: [
-                        .date,
-                        .hourAndMinute
-                    ]
+                    displayedComponents:
+                        state.draftAllDay
+                        ? [.date]
+                        : [
+                            .date,
+                            .hourAndMinute,
+                        ]
                 )
 
                 DatePicker(
                     "End",
                     selection:
                         $state.draftEnd,
-                    displayedComponents: [
-                        .date,
-                        .hourAndMinute
-                    ]
+                    displayedComponents:
+                        state.draftAllDay
+                        ? [.date]
+                        : [
+                            .date,
+                            .hourAndMinute,
+                        ]
                 )
             }
 
-            HStack(spacing: 7) {
-                ForEach(
-                    [30, 60, 90],
-                    id: \.self
-                ) { minutes in
-                    Button(
-                        "\(minutes)m"
-                    ) {
-                        state.setDraftDuration(
-                            minutes
-                        )
+            if !state.draftAllDay {
+                HStack(spacing: 7) {
+                    ForEach(
+                        [30, 60, 90],
+                        id: \.self
+                    ) { minutes in
+                        Button(
+                            "\(minutes)m"
+                        ) {
+                            state.setDraftDuration(
+                                minutes
+                            )
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
+
+                    Spacer()
+                }
+            }
+
+            Picker(
+                "Repeat",
+                selection:
+                    $state
+                        .draftRecurrenceKind
+            ) {
+                Text("Never")
+                    .tag(
+                        PlannerRecurrenceKind
+                            .none
+                    )
+                Text("Daily")
+                    .tag(
+                        PlannerRecurrenceKind
+                            .daily
+                    )
+                Text("Every weekday")
+                    .tag(
+                        PlannerRecurrenceKind
+                            .weekdays
+                    )
+                Text("Weekly")
+                    .tag(
+                        PlannerRecurrenceKind
+                            .weekly
+                    )
+                Text("Monthly")
+                    .tag(
+                        PlannerRecurrenceKind
+                            .monthly
+                    )
+                Text("Yearly")
+                    .tag(
+                        PlannerRecurrenceKind
+                            .yearly
+                    )
+            }
+
+            if state.draftRecurrenceKind
+                != .none {
+                Stepper(
+                    "Every \(state.draftRecurrenceInterval) \(recurrenceUnit)",
+                    value:
+                        $state
+                            .draftRecurrenceInterval,
+                    in: 1...99
+                )
+
+                Picker(
+                    "Ends",
+                    selection:
+                        $state
+                            .draftRecurrenceEndKind
+                ) {
+                    Text("Never")
+                        .tag(
+                            PlannerRecurrenceEndKind
+                                .never
+                        )
+                    Text("On date")
+                        .tag(
+                            PlannerRecurrenceEndKind
+                                .date
+                        )
+                    Text("After count")
+                        .tag(
+                            PlannerRecurrenceEndKind
+                                .count
+                        )
                 }
 
-                Spacer()
+                if state
+                    .draftRecurrenceEndKind
+                    == .date {
+                    DatePicker(
+                        "End repeat",
+                        selection:
+                            $state
+                                .draftRecurrenceEndDate,
+                        displayedComponents: [
+                            .date
+                        ]
+                    )
+                } else if state
+                    .draftRecurrenceEndKind
+                    == .count {
+                    Stepper(
+                        "After \(state.draftRecurrenceCount) occurrences",
+                        value:
+                            $state
+                                .draftRecurrenceCount,
+                        in: 1...999
+                    )
+                }
             }
 
             let conflicts =
@@ -4080,9 +4202,7 @@ private struct QuickAddView: View {
                         )
                 )
                 .font(.caption2)
-                .foregroundStyle(
-                    .secondary
-                )
+                .foregroundStyle(.secondary)
                 .lineLimit(2)
             }
 
@@ -4093,9 +4213,10 @@ private struct QuickAddView: View {
                         state.selectedCalendarID
                     },
                     set: {
-                        state.setDefaultCreateCalendarID(
-                            $0
-                        )
+                        state
+                            .setDefaultCreateCalendarID(
+                                $0
+                            )
                     }
                 )
             ) {
@@ -4112,15 +4233,132 @@ private struct QuickAddView: View {
                 }
             }
 
+            DisclosureGroup(
+                isExpanded:
+                    $state
+                        .draftDetailsExpanded
+            ) {
+                VStack(
+                    alignment: .leading,
+                    spacing: 9
+                ) {
+                    TextField(
+                        "Location",
+                        text:
+                            $state
+                                .draftLocation
+                    )
+                    .textFieldStyle(
+                        .roundedBorder
+                    )
+
+                    TextField(
+                        "URL",
+                        text:
+                            $state
+                                .draftURL
+                    )
+                    .textFieldStyle(
+                        .roundedBorder
+                    )
+
+                    TextField(
+                        "Time zone · blank = floating",
+                        text:
+                            $state
+                                .draftTimeZoneIdentifier
+                    )
+                    .textFieldStyle(
+                        .roundedBorder
+                    )
+
+                    Picker(
+                        "Show as",
+                        selection:
+                            $state
+                                .draftAvailability
+                    ) {
+                        Text("Busy")
+                            .tag(
+                                PlannerEventAvailabilityChoice
+                                    .busy
+                            )
+                        Text("Free")
+                            .tag(
+                                PlannerEventAvailabilityChoice
+                                    .free
+                            )
+                        Text("Tentative")
+                            .tag(
+                                PlannerEventAvailabilityChoice
+                                    .tentative
+                            )
+                        Text("Unavailable")
+                            .tag(
+                                PlannerEventAvailabilityChoice
+                                    .unavailable
+                            )
+                    }
+
+                    alertPicker(
+                        "Alert",
+                        selection:
+                            $state
+                                .draftAlert1Minutes
+                    )
+
+                    alertPicker(
+                        "Second alert",
+                        selection:
+                            $state
+                                .draftAlert2Minutes
+                    )
+
+                    Text("Notes")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    TextEditor(
+                        text:
+                            $state
+                                .draftNotes
+                    )
+                    .font(.system(size: 12))
+                    .frame(height: 68)
+                    .padding(5)
+                    .background {
+                        RoundedRectangle(
+                            cornerRadius: 7
+                        )
+                        .fill(
+                            Color.primary
+                                .opacity(0.04)
+                        )
+                    }
+                }
+                .padding(.top, 8)
+            } label: {
+                Text("More options")
+                    .font(
+                        .system(
+                            size: 12,
+                            weight: .medium
+                        )
+                    )
+            }
+
             HStack(spacing: 8) {
                 Button(
                     state.draftIsFocusBlock
+                    && !state.draftAllDay
                     ? "Add Focus Block"
                     : "Add event"
                 ) {
                     state.createBlock()
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(
+                    .borderedProminent
+                )
                 .disabled(
                     !state.accessGranted
                     || state
@@ -4128,7 +4366,8 @@ private struct QuickAddView: View {
                         .isEmpty
                 )
 
-                if state.draftIsFocusBlock {
+                if state.draftIsFocusBlock
+                    && !state.draftAllDay {
                     Button {
                         state.createBlock(
                             startFocusAfterSave:
@@ -4159,11 +4398,65 @@ private struct QuickAddView: View {
                     state.statusMessage
                 )
                 .font(.caption2)
-                .foregroundStyle(
-                    .secondary
-                )
+                .foregroundStyle(.secondary)
                 .lineLimit(3)
             }
+        }
+    }
+
+    private var recurrenceUnit: String {
+        switch state.draftRecurrenceKind {
+        case .daily:
+            return state.draftRecurrenceInterval
+                == 1
+                ? "day"
+                : "days"
+        case .weekdays, .weekly:
+            return state.draftRecurrenceInterval
+                == 1
+                ? "week"
+                : "weeks"
+        case .monthly:
+            return state.draftRecurrenceInterval
+                == 1
+                ? "month"
+                : "months"
+        case .yearly:
+            return state.draftRecurrenceInterval
+                == 1
+                ? "year"
+                : "years"
+        case .none:
+            return "interval"
+        }
+    }
+
+    private func alertPicker(
+        _ title: String,
+        selection: Binding<Int>
+    ) -> some View {
+        Picker(
+            title,
+            selection: selection
+        ) {
+            Text("None").tag(-1)
+            Text("At time").tag(0)
+            Text("5 minutes before")
+                .tag(5)
+            Text("10 minutes before")
+                .tag(10)
+            Text("15 minutes before")
+                .tag(15)
+            Text("30 minutes before")
+                .tag(30)
+            Text("1 hour before")
+                .tag(60)
+            Text("2 hours before")
+                .tag(120)
+            Text("1 day before")
+                .tag(1440)
+            Text("1 week before")
+                .tag(10080)
         }
     }
 }
