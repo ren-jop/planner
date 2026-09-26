@@ -4702,71 +4702,72 @@ private struct PlannerCalendarView: View {
 
     private var inspector: some View {
         VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Selected day")
-                            .font(
-                                .system(
-                                    size: 11,
-                                    weight: .semibold
-                                )
-                            )
-                            .foregroundStyle(
-                                .secondary
-                            )
-
-                        Text(
-                            state.selectedDate.formatted(
-                                .dateTime
-                                    .weekday(.wide)
-                                    .day()
-                                    .month(.abbreviated)
-                            )
-                        )
-                        .font(
-                            .system(
-                                size: 15,
-                                weight: .semibold
-                            )
-                        )
-                    }
-
-                    Spacer()
-
-                    Button {
-                        state.plannerInspectorMode = "add"
-                    } label: {
-                        Image(
-                            systemName:
-                                "plus"
-                        )
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .help("Add a time block")
-                }
-
-                Picker(
-                    "Inspector",
-                    selection: Binding(
-                        get: {
-                            state.plannerInspectorMode
-                        },
-                        set: {
-                            state.plannerInspectorMode = $0
-                        }
-                    )
+            HStack {
+                VStack(
+                    alignment: .leading,
+                    spacing: 2
                 ) {
-                    Text("Agenda")
-                        .tag("agenda")
-                    Text("New block")
-                        .tag("add")
+                    Text(
+                        state.plannerInspectorMode == "add"
+                        ? "New Focus Block"
+                        : "Selected day"
+                    )
+                    .font(
+                        .system(
+                            size: 11,
+                            weight: .semibold
+                        )
+                    )
+                    .foregroundStyle(.secondary)
+
+                    Text(
+                        state.selectedDate.formatted(
+                            .dateTime
+                                .weekday(.wide)
+                                .day()
+                                .month(.abbreviated)
+                        )
+                    )
+                    .font(
+                        .system(
+                            size: 15,
+                            weight: .semibold
+                        )
+                    )
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+
+                Spacer()
+
+                Button {
+                    state.closePlannerInspector()
+                } label: {
+                    Image(systemName: "xmark")
+                }
+                .buttonStyle(.plain)
+                .help("Close inspector")
             }
             .padding(14)
+
+            Picker(
+                "Inspector",
+                selection: Binding(
+                    get: {
+                        state.plannerInspectorMode
+                    },
+                    set: {
+                        state.plannerInspectorMode = $0
+                    }
+                )
+            ) {
+                Text("Agenda")
+                    .tag("agenda")
+                Text("New block")
+                    .tag("add")
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, 14)
+            .padding(.bottom, 12)
 
             Divider()
 
@@ -4795,7 +4796,7 @@ private struct PlannerCalendarView: View {
             )
         }
         .background(
-            Color.primary.opacity(0.015)
+            Color.primary.opacity(0.012)
         )
     }
 
@@ -5004,6 +5005,10 @@ private struct PlannerCalendarView: View {
             $0.isAllDay
             && $0.startDate < end
             && $0.endDate > start
+            && (
+                !state.plannerFocusOnly
+                || state.isFocusBlock($0)
+            )
         }
     }
 
@@ -5137,8 +5142,9 @@ private struct PlannerCalendarView: View {
                                 (slot % 2)
                                 * 30
                         )
-                        state.plannerInspectorMode =
-                            "add"
+                        state.draftIsFocusBlock = true
+                        state.plannerInspectorMode = "add"
+                        state.plannerInspectorPresented = true
                     } label: {
                         Rectangle()
                             .fill(
@@ -5275,6 +5281,8 @@ private struct PlannerCalendarView: View {
         width: CGFloat
     ) -> some View {
         let event = placement.event
+        let isFocus =
+            state.isFocusBlock(event)
         let start = max(
             event.startDate,
             visibleStart
@@ -5294,19 +5302,16 @@ private struct PlannerCalendarView: View {
             * hourHeight
         let height = max(
             25,
-            end.timeIntervalSince(
-                start
-            )
+            end.timeIntervalSince(start)
             / 3600
             * hourHeight
-            - 3
+            - 4
         )
         let gap: CGFloat = 3
         let outerPadding: CGFloat = 4
         let availableWidth = max(
             44,
-            width
-            - outerPadding * 2
+            width - outerPadding * 2
         )
         let laneCount = max(
             1,
@@ -5328,27 +5333,18 @@ private struct PlannerCalendarView: View {
             + CGFloat(
                 placement.lane
             )
-            * (
-                eventWidth + gap
-            )
+            * (eventWidth + gap)
         let color =
             eventColor(event)
 
         return Button {
-            state.selectDate(day)
-            state.plannerInspectorMode = "agenda"
-
-            if event
-                .calendar
-                .allowsContentModifications {
-                state.showEventEditor(
-                    event
-                )
-            }
+            state.openAgendaInspector(
+                on: day
+            )
         } label: {
             VStack(
                 alignment: .leading,
-                spacing: 1
+                spacing: 2
             ) {
                 Text(
                     event.title
@@ -5357,51 +5353,46 @@ private struct PlannerCalendarView: View {
                 .font(
                     .system(
                         size: 10.5,
-                        weight: .semibold
+                        weight:
+                            isFocus
+                            ? .semibold
+                            : .medium
                     )
                 )
                 .lineLimit(
-                    height >= 50
-                    ? 2
-                    : 1
+                    height >= 52 ? 2 : 1
                 )
 
-                if height >= 35 {
+                if height >= 38 {
                     Text(
                         event.startDate
                             .formatted(
-                                date:
-                                    .omitted,
-                                time:
-                                    .shortened
+                                date: .omitted,
+                                time: .shortened
                             )
                     )
                     .font(
                         .system(
-                            size: 9,
-                            design:
-                                .monospaced
+                            size: 8.8,
+                            design: .monospaced
                         )
                     )
-                    .foregroundStyle(
-                        .secondary
-                    )
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
                 }
 
-                if height >= 65 {
-                    Text(
-                        event.calendar.title
-                    )
-                    .font(
-                        .system(
-                            size: 8.5
+                if isFocus,
+                   height >= 68 {
+                    Text("Focus Block")
+                        .font(
+                            .system(
+                                size: 8.2,
+                                weight: .medium
+                            )
                         )
-                    )
-                    .foregroundStyle(
-                        color.opacity(0.95)
-                    )
-                    .lineLimit(1)
+                        .foregroundStyle(
+                            .secondary
+                        )
                 }
             }
             .padding(.horizontal, 6)
@@ -5416,7 +5407,11 @@ private struct PlannerCalendarView: View {
                     cornerRadius: 6
                 )
                 .fill(
-                    color.opacity(0.18)
+                    color.opacity(
+                        isFocus
+                        ? 0.15
+                        : 0.085
+                    )
                 )
             }
             .overlay(
@@ -5425,19 +5420,46 @@ private struct PlannerCalendarView: View {
                 RoundedRectangle(
                     cornerRadius: 2
                 )
-                .fill(color)
-                .frame(width: 3)
-                .padding(
-                    .vertical,
-                    3
+                .fill(
+                    color.opacity(
+                        isFocus
+                        ? 0.82
+                        : 0.55
+                    )
                 )
+                .frame(
+                    width:
+                        isFocus ? 3 : 2
+                )
+                .padding(.vertical, 3)
+            }
+            .overlay(
+                alignment: .topTrailing
+            ) {
+                if isFocus {
+                    Image(
+                        systemName: "lock.fill"
+                    )
+                    .font(
+                        .system(size: 7.5)
+                    )
+                    .foregroundStyle(
+                        Color.primary
+                            .opacity(0.45)
+                    )
+                    .padding(5)
+                }
             }
             .overlay {
                 RoundedRectangle(
                     cornerRadius: 6
                 )
                 .stroke(
-                    color.opacity(0.25),
+                    color.opacity(
+                        isFocus
+                        ? 0.28
+                        : 0.11
+                    ),
                     lineWidth: 1
                 )
             }
@@ -5447,6 +5469,18 @@ private struct PlannerCalendarView: View {
             "\(event.title ?? "Untitled") · \(event.calendar.title)"
         )
         .contextMenu {
+            Button(
+                isFocus
+                ? "Remove Focus Block"
+                : "Mark as Focus Block"
+            ) {
+                state.setFocusBlock(
+                    event,
+                    enabled: !isFocus,
+                    autoStart: true
+                )
+            }
+
             if event.calendar
                 .allowsContentModifications {
                 Button("Edit") {
@@ -5458,6 +5492,8 @@ private struct PlannerCalendarView: View {
 
             if !event.isAllDay,
                event.endDate > Date() {
+                Divider()
+
                 Button("Start in Focus") {
                     state.startFocus(
                         for: event
@@ -5474,26 +5510,57 @@ private struct PlannerCalendarView: View {
     private func eventColor(
         _ event: EKEvent
     ) -> Color {
-        calendarColor(
-            event.calendar
-        )
-    }
-
-    private func calendarColor(
-        _ calendar: EKCalendar
-    ) -> Color {
-        if let cgColor =
-            calendar.cgColor,
-           let nsColor =
-            NSColor(
-                cgColor: cgColor
-            ) {
+        guard let cgColor =
+                event.calendar.cgColor,
+              let base =
+                NSColor(
+                    cgColor: cgColor
+                )?.usingColorSpace(
+                    .deviceRGB
+                )
+        else {
             return Color(
-                nsColor: nsColor
+                nsColor:
+                    .secondaryLabelColor
             )
         }
 
-        return Color.accentColor
+        var hue: CGFloat = 0
+        var saturation: CGFloat = 0
+        var brightness: CGFloat = 0
+        var alpha: CGFloat = 0
+        base.getHue(
+            &hue,
+            saturation: &saturation,
+            brightness: &brightness,
+            alpha: &alpha
+        )
+
+        let muted =
+            NSColor(
+                calibratedHue: hue,
+                saturation:
+                    max(
+                        0.08,
+                        min(
+                            0.30,
+                            saturation * 0.34
+                        )
+                    ),
+                brightness:
+                    max(
+                        0.42,
+                        min(
+                            0.78,
+                            brightness * 0.82
+                        )
+                    ),
+                alpha: 1
+            )
+
+        return Color(
+            nsColor: muted
+        )
     }
 
     private func placedEvents(
@@ -5521,6 +5588,10 @@ private struct PlannerCalendarView: View {
                         < end
                     && $0.endDate
                         > start
+                    && (
+                        !state.plannerFocusOnly
+                        || state.isFocusBlock($0)
+                    )
                 }
                 .sorted {
                     if $0.startDate
