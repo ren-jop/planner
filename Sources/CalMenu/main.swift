@@ -720,6 +720,7 @@ struct MonthCell: Identifiable {
 
 struct FocusBlockMetadata: Codable, Hashable {
     let eventID: String
+    var seriesExternalID: String?
     var autoStart: Bool
     var lastTriggeredStart: Date?
 }
@@ -1172,12 +1173,48 @@ final class CalendarMenuState: NSObject, ObservableObject {
         }
     }
 
+    private func focusMetadataKey(
+        for event: EKEvent
+    ) -> String? {
+        let id =
+            event.calendarItemIdentifier
+
+        if focusBlockMetadata[id] != nil {
+            return id
+        }
+
+        let externalID =
+            event.calendarItemExternalIdentifier
+        guard !externalID.isEmpty else {
+            return nil
+        }
+
+        return focusBlockMetadata.first(
+            where: {
+                $0.value.seriesExternalID
+                    == externalID
+            }
+        )?.key
+    }
+
+    private func focusMetadata(
+        for event: EKEvent
+    ) -> FocusBlockMetadata? {
+        guard let key =
+                focusMetadataKey(
+                    for: event
+                )
+        else {
+            return nil
+        }
+
+        return focusBlockMetadata[key]
+    }
+
     func isFocusBlock(
         _ event: EKEvent
     ) -> Bool {
-        focusBlockMetadata[
-            event.calendarItemIdentifier
-        ] != nil
+        focusMetadata(for: event) != nil
     }
 
     func setFocusBlock(
@@ -1187,21 +1224,56 @@ final class CalendarMenuState: NSObject, ObservableObject {
     ) {
         let id =
             event.calendarItemIdentifier
+        let externalID =
+            event.calendarItemExternalIdentifier
+        let matchingKey =
+            focusMetadataKey(for: event)
 
         if enabled {
             let existing =
-                focusBlockMetadata[id]
+                matchingKey.flatMap {
+                    focusBlockMetadata[$0]
+                }
             focusBlockMetadata[id] =
                 FocusBlockMetadata(
                     eventID: id,
+                    seriesExternalID:
+                        externalID.isEmpty
+                        ? nil
+                        : externalID,
                     autoStart: autoStart,
                     lastTriggeredStart:
-                        existing?.lastTriggeredStart
+                        existing?
+                            .lastTriggeredStart
                 )
+
+            if let matchingKey,
+               matchingKey != id {
+                focusBlockMetadata.removeValue(
+                    forKey: matchingKey
+                )
+            }
         } else {
             focusBlockMetadata.removeValue(
                 forKey: id
             )
+
+            if !externalID.isEmpty {
+                let keys =
+                    focusBlockMetadata
+                        .filter {
+                            $0.value
+                                .seriesExternalID
+                                == externalID
+                        }
+                        .map(\.key)
+                for key in keys {
+                    focusBlockMetadata
+                        .removeValue(
+                            forKey: key
+                        )
+                }
+            }
         }
 
         saveFocusBlockMetadata()
@@ -1311,9 +1383,9 @@ final class CalendarMenuState: NSObject, ObservableObject {
                   event.startDate <= now,
                   event.endDate > now,
                   let metadata =
-                    focusBlockMetadata[
-                        event.calendarItemIdentifier
-                    ],
+                    focusMetadata(
+                        for: event
+                    ),
                   metadata.autoStart
             else {
                 return false
@@ -2804,10 +2876,12 @@ final class CalendarMenuState: NSObject, ObservableObject {
             ? "Calendar block"
             : title
         let eventID = event.calendarItemIdentifier
+        let focusMetadataID =
+            focusMetadataKey(for: event)
 
         DispatchQueue.global(
             qos: .userInitiated
-        ).async { [weak self, focusPath, focusTitle, seconds, eventStart, eventEnd, eventID] in
+        ).async { [weak self, focusPath, focusTitle, seconds, eventStart, eventEnd, eventID, focusMetadataID] in
             let process = Process()
             process.executableURL = URL(
                 fileURLWithPath: focusPath
@@ -2857,11 +2931,10 @@ final class CalendarMenuState: NSObject, ObservableObject {
                     }
 
                     if status == 0 {
-                        if self.focusBlockMetadata[
-                            eventID
-                        ] != nil {
+                        if let focusMetadataID {
                             self.markFocusBlockTriggered(
-                                eventID: eventID,
+                                eventID:
+                                    focusMetadataID,
                                 start: eventStart
                             )
                         }
