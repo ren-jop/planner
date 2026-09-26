@@ -4380,9 +4380,9 @@ private struct PlannerDashboardView: View {
 private struct PlannerCalendarView: View {
     @ObservedObject var state: CalendarMenuState
 
-    private let hourHeight: CGFloat = 60
-    private let timeGutterWidth: CGFloat = 54
-    private let minimumDayWidth: CGFloat = 118
+    private let hourHeight: CGFloat = 62
+    private let timeGutterWidth: CGFloat = 46
+    private let minimumDayWidth: CGFloat = 92
 
     private struct Placement {
         let event: EKEvent
@@ -4439,41 +4439,65 @@ private struct PlannerCalendarView: View {
     var body: some View {
         VStack(spacing: 0) {
             calendarToolbar
-            visibleCalendarStrip
             Divider()
 
-            HSplitView {
+            HStack(spacing: 0) {
                 calendarTimeline
-                    .frame(minWidth: 760)
-
-                inspector
                     .frame(
-                        minWidth: 270,
-                        idealWidth: 305,
-                        maxWidth: 335
+                        minWidth: 760,
+                        maxWidth: .infinity
                     )
+
+                if state.plannerInspectorPresented {
+                    Divider()
+
+                    inspector
+                        .frame(width: 300)
+                }
             }
         }
     }
 
     private var calendarToolbar: some View {
-        HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
+        HStack(spacing: 9) {
+            VStack(
+                alignment: .leading,
+                spacing: 1
+            ) {
                 Text("Calendar")
                     .font(
                         .system(
-                            size: 21,
+                            size: 20,
                             weight: .semibold,
                             design: .rounded
                         )
                     )
 
                 Text(weekLabel)
-                    .font(.caption)
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
             }
 
             Spacer()
+
+            Toggle(
+                "Focus only",
+                isOn: Binding(
+                    get: {
+                        state.plannerFocusOnly
+                    },
+                    set: {
+                        state.setPlannerFocusOnly(
+                            $0
+                        )
+                    }
+                )
+            )
+            .toggleStyle(.switch)
+            .controlSize(.mini)
+            .help(
+                "Show only events marked as Focus Blocks"
+            )
 
             calendarMenu
 
@@ -4486,22 +4510,36 @@ private struct PlannerCalendarView: View {
                 Button {
                     state.moveWeek(-1)
                 } label: {
-                    Image(systemName: "chevron.left")
+                    Image(
+                        systemName:
+                            "chevron.left"
+                    )
                 }
                 .help("Previous week")
 
                 Button {
                     state.moveWeek(1)
                 } label: {
-                    Image(systemName: "chevron.right")
+                    Image(
+                        systemName:
+                            "chevron.right"
+                    )
                 }
                 .help("Next week")
             }
             .controlSize(.small)
+
+            Button {
+                state.openNewBlockInspector()
+            } label: {
+                Image(systemName: "plus")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .help("New Focus Block")
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 11)
-        .padding(.bottom, 9)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
     }
 
     private var calendarMenu: some View {
@@ -4538,96 +4576,18 @@ private struct PlannerCalendarView: View {
                 }
             }
         } label: {
-            Label(
-                "\(state.visibleCalendarCount) calendar\(state.visibleCalendarCount == 1 ? "" : "s")",
-                systemImage: "calendar"
-            )
+            HStack(spacing: 5) {
+                Image(
+                    systemName: "calendar"
+                )
+                Text(
+                    "\(state.visibleCalendarCount)"
+                )
+                .monospacedDigit()
+            }
         }
         .controlSize(.small)
-        .help("Choose calendars to show together")
-    }
-
-    private var visibleCalendarStrip: some View {
-        ScrollView(
-            .horizontal,
-            showsIndicators: false
-        ) {
-            HStack(spacing: 6) {
-                ForEach(
-                    state.visibleCalendars,
-                    id: \.calendarIdentifier
-                ) { calendar in
-                    let color = calendarColor(
-                        calendar
-                    )
-
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(color)
-                            .frame(width: 7, height: 7)
-
-                        Text(calendar.title)
-                            .font(
-                                .system(
-                                    size: 10.5,
-                                    weight: .medium
-                                )
-                            )
-                            .lineLimit(1)
-
-                        if state.visibleCalendarCount > 1 {
-                            Button {
-                                state.setCalendarVisible(
-                                    calendar.calendarIdentifier,
-                                    visible: false
-                                )
-                            } label: {
-                                Image(systemName: "xmark")
-                                    .font(
-                                        .system(
-                                            size: 8,
-                                            weight: .semibold
-                                        )
-                                    )
-                                    .foregroundStyle(
-                                        .secondary
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                            .help(
-                                "Hide \(calendar.title)"
-                            )
-                        }
-                    }
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                    .background(
-                        Capsule()
-                            .fill(
-                                color.opacity(0.12)
-                            )
-                    )
-                    .overlay {
-                        Capsule()
-                            .stroke(
-                                color.opacity(0.22),
-                                lineWidth: 1
-                            )
-                    }
-                    .contextMenu {
-                        Button(
-                            "Show only \(calendar.title)"
-                        ) {
-                            state.showOnlyCalendar(
-                                calendar
-                            )
-                        }
-                    }
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 9)
-        }
+        .help("Choose visible calendars")
     }
 
     @ViewBuilder
