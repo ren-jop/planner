@@ -2824,21 +2824,49 @@ final class CalendarMenuState: NSObject, ObservableObject {
         end: Date,
         allDay: Bool,
         calendarID: String,
-        focusBlock: Bool
+        focusBlock: Bool,
+        location: String,
+        notes: String,
+        urlText: String,
+        timeZoneIdentifier: String,
+        availability:
+            PlannerEventAvailabilityChoice,
+        alert1Minutes: Int,
+        alert2Minutes: Int,
+        alarmsChanged: Bool,
+        recurrenceKind:
+            PlannerRecurrenceKind,
+        recurrenceInterval: Int,
+        recurrenceEndKind:
+            PlannerRecurrenceEndKind,
+        recurrenceEndDate: Date,
+        recurrenceCount: Int,
+        recurrenceChanged: Bool,
+        editScope:
+            PlannerEventEditScope
     ) -> Bool {
-        let trimmed = title.trimmingCharacters(
-            in: .whitespacesAndNewlines
-        )
+        let trimmed =
+            title.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
         guard !trimmed.isEmpty else {
-            statusMessage = "Event title cannot be empty."
+            statusMessage =
+                "Event title cannot be empty."
             return false
         }
 
-        guard let target = calendars.first(where: {
-            $0.calendarIdentifier == calendarID &&
-            $0.allowsContentModifications
-        }) else {
-            statusMessage = "Choose a writable calendar."
+        guard let target =
+                calendars.first(
+                    where: {
+                        $0.calendarIdentifier
+                            == calendarID
+                        && $0
+                            .allowsContentModifications
+                    }
+                )
+        else {
+            statusMessage =
+                "Choose a writable calendar."
             return false
         }
 
@@ -2846,73 +2874,243 @@ final class CalendarMenuState: NSObject, ObservableObject {
         let normalizedEnd: Date
 
         if allDay {
-            normalizedStart = calendar.startOfDay(for: start)
-            let candidateEnd = calendar.startOfDay(for: end)
-            normalizedEnd = candidateEnd > normalizedStart
+            normalizedStart =
+                calendar.startOfDay(
+                    for: start
+                )
+            let candidateEnd =
+                calendar.startOfDay(
+                    for: end
+                )
+            normalizedEnd =
+                candidateEnd > normalizedStart
                 ? candidateEnd
-                : (calendar.date(
-                    byAdding: .day,
-                    value: 1,
-                    to: normalizedStart
-                ) ?? normalizedStart.addingTimeInterval(86400))
+                : (
+                    calendar.date(
+                        byAdding: .day,
+                        value: 1,
+                        to: normalizedStart
+                    )
+                    ?? normalizedStart
+                        .addingTimeInterval(
+                            24 * 60 * 60
+                        )
+                )
         } else {
             guard end > start else {
-                statusMessage = "End time must be after start time."
+                statusMessage =
+                    "End time must be after start time."
                 return false
             }
             normalizedStart = start
             normalizedEnd = end
         }
 
+        let trimmedURL =
+            urlText.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+        let eventURL: URL?
+        if trimmedURL.isEmpty {
+            eventURL = nil
+        } else if let url =
+                    URL(string: trimmedURL),
+                  url.scheme != nil {
+            eventURL = url
+        } else {
+            statusMessage =
+                "Enter a full URL such as https://example.com."
+            return false
+        }
+
+        let trimmedTimeZone =
+            timeZoneIdentifier
+                .trimmingCharacters(
+                    in: .whitespacesAndNewlines
+                )
+        let eventTimeZone: TimeZone?
+        if trimmedTimeZone.isEmpty {
+            eventTimeZone = nil
+        } else if let zone =
+                    TimeZone(
+                        identifier:
+                            trimmedTimeZone
+                    ) {
+            eventTimeZone = zone
+        } else {
+            statusMessage =
+                "Unknown time zone. Use an IANA name such as Australia/Sydney, or leave it blank for a floating event."
+            return false
+        }
+
         ensureCalendarVisible(target)
+
+        let wasRecurring =
+            event.hasRecurrenceRules
 
         event.title = trimmed
         event.startDate = normalizedStart
         event.endDate = normalizedEnd
         event.isAllDay = allDay
         event.calendar = target
+        event.location =
+            location.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+        event.notes =
+            notes.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+        event.url = eventURL
+        event.timeZone = eventTimeZone
+        event.availability =
+            availability.eventKitValue
+
+        if alarmsChanged {
+            for alarm in event.alarms ?? [] {
+                event.removeAlarm(alarm)
+            }
+
+            for minutes in [
+                alert1Minutes,
+                alert2Minutes,
+            ] where minutes >= 0 {
+                event.addAlarm(
+                    EKAlarm(
+                        relativeOffset:
+                            -TimeInterval(
+                                minutes * 60
+                            )
+                    )
+                )
+            }
+        }
+
+        if recurrenceChanged {
+            for rule in
+                event.recurrenceRules ?? [] {
+                event.removeRecurrenceRule(
+                    rule
+                )
+            }
+
+            if let recurrence =
+                plannerRecurrenceRule(
+                    kind:
+                        recurrenceKind,
+                    interval:
+                        recurrenceInterval,
+                    endKind:
+                        recurrenceEndKind,
+                    endDate:
+                        recurrenceEndDate,
+                    occurrenceCount:
+                        recurrenceCount
+                ) {
+                event.addRecurrenceRule(
+                    recurrence
+                )
+            }
+        }
+
+        let saveSpan: EKSpan =
+            recurrenceChanged
+            && wasRecurring
+            ? .futureEvents
+            : editScope.eventKitSpan
 
         do {
-            try store.save(event, span: .thisEvent, commit: true)
+            try store.save(
+                event,
+                span: saveSpan,
+                commit: true
+            )
             setFocusBlock(
                 event,
-                enabled: focusBlock,
+                enabled:
+                    !allDay
+                    && focusBlock,
                 autoStart: true
             )
             statusMessage =
-                focusBlock
-                ? "Updated Focus Block."
-                : "Updated."
+                focusBlock && !allDay
+                ? "Updated Focus Block and synced it."
+                : "Updated and synced through Apple Calendar."
             reloadVisibleData()
             reloadWeekEvents()
             reloadUpcomingBlocks()
+            reloadGoalEvents()
             return true
         } catch {
-            statusMessage = error.localizedDescription
+            statusMessage =
+                error.localizedDescription
             return false
         }
     }
 
-    func deleteEvent(_ event: EKEvent) {
-        guard event.calendar.allowsContentModifications else {
-            statusMessage = "That calendar is read-only."
+    func deleteEvent(
+        _ event: EKEvent,
+        span: EKSpan = .thisEvent
+    ) {
+        guard event.calendar
+            .allowsContentModifications
+        else {
+            statusMessage =
+                "That calendar is read-only."
             return
         }
 
+        let id =
+            event.calendarItemIdentifier
+        let externalID =
+            event.calendarItemExternalIdentifier
+        let wasRecurring =
+            event.hasRecurrenceRules
+
         do {
-            let id =
-                event.calendarItemIdentifier
-            try store.remove(event, span: .thisEvent, commit: true)
-            focusBlockMetadata.removeValue(
-                forKey: id
+            try store.remove(
+                event,
+                span: span,
+                commit: true
             )
-            saveFocusBlockMetadata()
-            statusMessage = "Deleted."
+
+            if !wasRecurring
+                || span == .futureEvents {
+                focusBlockMetadata
+                    .removeValue(
+                        forKey: id
+                    )
+
+                if !externalID.isEmpty {
+                    let keys =
+                        focusBlockMetadata
+                            .filter {
+                                $0.value
+                                    .seriesExternalID
+                                    == externalID
+                            }
+                            .map(\.key)
+                    for key in keys {
+                        focusBlockMetadata
+                            .removeValue(
+                                forKey: key
+                            )
+                    }
+                }
+                saveFocusBlockMetadata()
+            }
+
+            statusMessage =
+                span == .futureEvents
+                ? "Deleted this and future events."
+                : "Deleted."
             reloadVisibleData()
             reloadWeekEvents()
             reloadUpcomingBlocks()
+            reloadGoalEvents()
         } catch {
-            statusMessage = error.localizedDescription
+            statusMessage =
+                error.localizedDescription
         }
     }
 
