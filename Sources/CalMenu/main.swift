@@ -1,6 +1,6 @@
 import SwiftUI
 import AppKit
-import EventKit
+@preconcurrency import EventKit
 import Combine
 
 private struct CalcliConfig: Decodable {
@@ -100,6 +100,7 @@ final class CalendarMenuState: NSObject, ObservableObject {
     @Published var futureCalendarID = ""
     @Published var visibleCalendarIDs: Set<String> = []
     @Published var plannerPanel = "calendar"
+    @Published var plannerInspectorMode = "agenda"
     @Published private(set) var weekEvents: [EKEvent] = []
 
     @Published private(set) var monthCellsCache: [MonthCell] = []
@@ -1170,10 +1171,13 @@ final class CalendarMenuState: NSObject, ObservableObject {
         let focusTitle = title.isEmpty
             ? "Calendar block"
             : title
+        let eventStart = event.startDate
+        let eventEnd = event.endDate
+        let eventID = event.calendarItemIdentifier
 
         DispatchQueue.global(
             qos: .userInitiated
-        ).async { [weak self, focusPath, focusTitle, seconds] in
+        ).async { [weak self, focusPath, focusTitle, seconds, eventStart, eventEnd, eventID] in
             let process = Process()
             process.executableURL = URL(
                 fileURLWithPath: focusPath
@@ -1181,8 +1185,8 @@ final class CalendarMenuState: NSObject, ObservableObject {
             let plannedSeconds = max(
                 60,
                 Int(
-                    event.endDate
-                        .timeIntervalSince(event.startDate)
+                    eventEnd
+                        .timeIntervalSince(eventStart)
                         .rounded(.up)
                 )
             )
@@ -1193,7 +1197,7 @@ final class CalendarMenuState: NSObject, ObservableObject {
                 "--title",
                 focusTitle,
                 "--event-id",
-                event.calendarItemIdentifier,
+                eventID,
                 "--planned-seconds",
                 String(plannedSeconds),
             ]
@@ -2766,7 +2770,6 @@ private struct PlannerDashboardView: View {
 
 private struct PlannerCalendarView: View {
     @ObservedObject var state: CalendarMenuState
-    @State private var inspectorMode = "agenda"
 
     private let hourHeight: CGFloat = 60
     private let timeGutterWidth: CGFloat = 54
@@ -3163,7 +3166,7 @@ private struct PlannerCalendarView: View {
                     Spacer()
 
                     Button {
-                        inspectorMode = "add"
+                        state.plannerInspectorMode = "add"
                     } label: {
                         Image(
                             systemName:
@@ -3177,7 +3180,14 @@ private struct PlannerCalendarView: View {
 
                 Picker(
                     "Inspector",
-                    selection: $inspectorMode
+                    selection: Binding(
+                        get: {
+                            state.plannerInspectorMode
+                        },
+                        set: {
+                            state.plannerInspectorMode = $0
+                        }
+                    )
                 ) {
                     Text("Agenda")
                         .tag("agenda")
@@ -3192,7 +3202,7 @@ private struct PlannerCalendarView: View {
             Divider()
 
             Group {
-                if inspectorMode == "add" {
+                if state.plannerInspectorMode == "add" {
                     ScrollView {
                         QuickAddView(
                             state: state
@@ -3558,7 +3568,7 @@ private struct PlannerCalendarView: View {
                                 (slot % 2)
                                 * 30
                         )
-                        inspectorMode =
+                        state.plannerInspectorMode =
                             "add"
                     } label: {
                         Rectangle()
@@ -3757,7 +3767,7 @@ private struct PlannerCalendarView: View {
 
         return Button {
             state.selectDate(day)
-            inspectorMode = "agenda"
+            state.plannerInspectorMode = "agenda"
 
             if event
                 .calendar
