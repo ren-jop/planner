@@ -2,7 +2,7 @@
 
 A small macOS planning app built around Apple Calendar.
 
-**Status:** v0.8.3 preview
+**Status:** v0.9.0 preview
 
 **Platform:** macOS 14+
 
@@ -31,8 +31,11 @@ macOS will ask for Calendar access on first use.
 ## What it does
 
 - Shows Apple Calendar events in a responsive seven-day week timeline with half-hour slots.
+- Lets you show any combination of Apple calendars at once. Calendar visibility is persistent, available from the Calendar toolbar and Settings, and uses each calendar's native colour.
 - Gives unrelated events their full column width and only splits blocks that actually overlap.
-- Uses Apple Calendar colours, a quieter time grid, compact day headers and a current-time marker so dense schedules remain readable.
+- Uses a quieter grid, compact headers, a current-time marker and an event inspector so dense schedules remain readable.
+- The right side switches between the selected-day agenda and the New block form instead of showing both at once.
+- Month previews follow the same visible-calendar selection; Dashboard goals keep a separate configurable source calendar.
 - Click a slot to prepare a block, adjust its duration and check overlaps before adding it.
 - Reads and edits Apple Calendar events.
 - Shows upcoming blocks and goals.
@@ -40,6 +43,14 @@ macOS will ask for Calendar access on first use.
 - Shows recent Focus work.
 - Compares planned time with completed Focus sessions.
 - Detects Deadlock when it is installed.
+
+## 0.9.0 calendar redesign
+
+The Calendar screen was rebuilt around multi-calendar planning rather than a single preview calendar. Use **Calendars** in the top-right of the week view to toggle calendars independently. The coloured chips directly below the toolbar show exactly what is visible; remove a chip to hide that calendar or use its context menu to show only that one.
+
+Event cards retain YouTube-style compact density but now display the Apple Calendar colour and, when there is enough vertical room, the calendar name. Overlapping events share only the space required by their local overlap cluster instead of shrinking unrelated events elsewhere in the day.
+
+Settings now has a proper multi-select calendar section. The default calendar for newly-created blocks, the calendar used by the Time Blocks screen, and the Dashboard goals calendar remain separate choices.
 
 ## How the apps fit together
 
