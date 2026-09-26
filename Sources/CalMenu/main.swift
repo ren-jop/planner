@@ -3466,15 +3466,58 @@ private struct QuickAddView: View {
     @ObservedObject var state: CalendarMenuState
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Time block")
-                .font(
-                    .system(
-                        size: 13,
-                        weight: .semibold,
-                        design: .rounded
+        VStack(
+            alignment: .leading,
+            spacing: 12
+        ) {
+            HStack {
+                VStack(
+                    alignment: .leading,
+                    spacing: 2
+                ) {
+                    Text(
+                        state.draftIsFocusBlock
+                        ? "Focus Block"
+                        : "Calendar event"
                     )
+                    .font(
+                        .system(
+                            size: 13,
+                            weight: .semibold,
+                            design: .rounded
+                        )
+                    )
+
+                    if state.draftIsFocusBlock {
+                        Text(
+                            "Focus + deadlock start automatically at the scheduled time."
+                        )
+                        .font(.caption2)
+                        .foregroundStyle(
+                            .secondary
+                        )
+                        .fixedSize(
+                            horizontal: false,
+                            vertical: true
+                        )
+                    }
+                }
+
+                Spacer()
+
+                Toggle(
+                    "",
+                    isOn:
+                        $state
+                        .draftIsFocusBlock
                 )
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .help(
+                    "Mark this event as a Focus Block"
+                )
+            }
 
             TextField(
                 "What are you doing?",
@@ -3485,92 +3528,146 @@ private struct QuickAddView: View {
             VStack(spacing: 8) {
                 DatePicker(
                     "Start",
-                    selection: $state.draftStart,
-                    displayedComponents: [.date, .hourAndMinute]
+                    selection:
+                        $state.draftStart,
+                    displayedComponents: [
+                        .date,
+                        .hourAndMinute
+                    ]
                 )
 
                 DatePicker(
                     "End",
-                    selection: $state.draftEnd,
-                    displayedComponents: [.date, .hourAndMinute]
+                    selection:
+                        $state.draftEnd,
+                    displayedComponents: [
+                        .date,
+                        .hourAndMinute
+                    ]
                 )
             }
 
-            HStack(spacing: 8) {
-                Text("Duration")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                ForEach([30, 60, 90], id: \.self) { minutes in
-                    Button("\(minutes)m") {
-                        state.setDraftDuration(minutes)
+            HStack(spacing: 7) {
+                ForEach(
+                    [30, 60, 90],
+                    id: .self
+                ) { minutes in
+                    Button(
+                        "\(minutes)m"
+                    ) {
+                        state.setDraftDuration(
+                            minutes
+                        )
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                 }
+
+                Spacer()
             }
 
-            let conflicts = state.draftConflicts
+            let conflicts =
+                state.draftConflicts
             if !conflicts.isEmpty {
-                Text("Overlaps \(conflicts.map { $0.title ?? "Untitled" }.joined(separator: ", "))")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                    .lineLimit(2)
+                Text(
+                    "Overlaps "
+                    + conflicts
+                        .map {
+                            $0.title
+                            ?? "Untitled"
+                        }
+                        .joined(
+                            separator: ", "
+                        )
+                )
+                .font(.caption2)
+                .foregroundStyle(
+                    .secondary
+                )
+                .lineLimit(2)
             }
 
             Picker(
                 "Calendar",
                 selection: Binding(
-                    get: { state.selectedCalendarID },
-                    set: { state.setDefaultCreateCalendarID($0) }
+                    get: {
+                        state.selectedCalendarID
+                    },
+                    set: {
+                        state.setDefaultCreateCalendarID(
+                            $0
+                        )
+                    }
                 )
             ) {
                 ForEach(
                     state.writableCalendars,
-                    id: \.calendarIdentifier
+                    id:
+                        .calendarIdentifier
                 ) { calendar in
                     Text(calendar.title)
-                        .tag(calendar.calendarIdentifier)
+                        .tag(
+                            calendar
+                                .calendarIdentifier
+                        )
                 }
             }
 
-            if state.selectedCalendarID != state.futureCalendarID {
-                Text("Assigned blocks list shows only \(state.futureCalendarName).")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack {
-                Button("Add") {
+            HStack(spacing: 8) {
+                Button(
+                    state.draftIsFocusBlock
+                    ? "Add Focus Block"
+                    : "Add event"
+                ) {
                     state.createBlock()
                 }
+                .buttonStyle(
+                    state.draftIsFocusBlock
+                    ? .borderedProminent
+                    : .bordered
+                )
                 .disabled(
-                    !state.accessGranted ||
-                    state.writableCalendars.isEmpty
+                    !state.accessGranted
+                    || state
+                        .writableCalendars
+                        .isEmpty
                 )
 
-                Button {
-                    state.createBlock(
-                        startFocusAfterSave: true
-                    )
-                } label: {
-                    Label(
-                        "Add & Focus",
-                        systemImage: "timer"
+                if state.draftIsFocusBlock {
+                    Button {
+                        state.createBlock(
+                            startFocusAfterSave:
+                                true
+                        )
+                    } label: {
+                        Label(
+                            "Add & Focus",
+                            systemImage:
+                                "timer"
+                        )
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(
+                        !state.accessGranted
+                        || state
+                            .writableCalendars
+                            .isEmpty
                     )
                 }
-                .disabled(
-                    !state.accessGranted ||
-                    state.writableCalendars.isEmpty
-                )
 
                 Spacer()
             }
 
-            if !state.statusMessage.isEmpty {
-                Text(state.statusMessage)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+            if !state.statusMessage
+                .isEmpty {
+                Text(
+                    state.statusMessage
+                )
+                .font(.caption2)
+                .foregroundStyle(
+                    .secondary
+                )
+                .lineLimit(3)
             }
         }
     }
@@ -3940,8 +4037,8 @@ private struct PlannerSidebar: View {
                 id: "calendar"
             )
             sidebarButton(
-                "Time Blocks",
-                icon: "clock",
+                "Focus Blocks",
+                icon: "lock.clock",
                 id: "blocks"
             )
             sidebarButton(
@@ -6247,37 +6344,273 @@ private struct PlannerBlocksView: View {
 
     var body: some View {
         HSplitView {
-            UpcomingBlocksView(state: state)
-                .padding(20)
-                .frame(minWidth: 560)
+            VStack(
+                alignment: .leading,
+                spacing: 12
+            ) {
+                HStack {
+                    VStack(
+                        alignment: .leading,
+                        spacing: 2
+                    ) {
+                        Text("Focus Blocks")
+                            .font(
+                                .system(
+                                    size: 21,
+                                    weight:
+                                        .semibold,
+                                    design:
+                                        .rounded
+                                )
+                            )
 
-            VStack(spacing: 0) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Assign a block")
-                        .font(.system(size: 17, weight: .semibold))
+                        Text(
+                            "Scheduled work that automatically starts Focus and deadlock."
+                        )
+                        .font(.caption)
+                        .foregroundStyle(
+                            .secondary
+                        )
+                    }
+
+                    Spacer()
 
                     Text(
-                        "Stored in Apple Calendar · started with Focus · protected by deadlock"
+                        "\(state.upcomingBlocks.count)"
+                    )
+                    .font(
+                        .caption
+                            .monospacedDigit()
+                    )
+                    .foregroundStyle(
+                        .secondary
+                    )
+                }
+
+                if state.upcomingBlocks.isEmpty {
+                    VStack(spacing: 8) {
+                        Image(
+                            systemName:
+                                "lock.clock"
+                        )
+                        .font(
+                            .system(size: 24)
+                        )
+                        .foregroundStyle(
+                            .secondary
+                        )
+
+                        Text(
+                            "No upcoming Focus Blocks"
+                        )
+                        .font(.callout)
+
+                        Text(
+                            "Create one on the calendar or use the form on the right."
+                        )
+                        .font(.caption)
+                        .foregroundStyle(
+                            .secondary
+                        )
+                    }
+                    .frame(
+                        maxWidth: .infinity,
+                        maxHeight: .infinity
+                    )
+                } else {
+                    ScrollView {
+                        LazyVStack(
+                            spacing: 7
+                        ) {
+                            ForEach(
+                                state.upcomingBlocks,
+                                id:
+                                    .calendarItemIdentifier
+                            ) { event in
+                                HStack(
+                                    spacing: 10
+                                ) {
+                                    Image(
+                                        systemName:
+                                            "lock.fill"
+                                    )
+                                    .font(
+                                        .system(
+                                            size: 9
+                                        )
+                                    )
+                                    .foregroundStyle(
+                                        .secondary
+                                    )
+
+                                    VStack(
+                                        alignment:
+                                            .leading,
+                                        spacing: 2
+                                    ) {
+                                        Text(
+                                            event.title
+                                            ?? "Untitled"
+                                        )
+                                        .font(
+                                            .system(
+                                                size: 13,
+                                                weight:
+                                                    .medium
+                                            )
+                                        )
+                                        .lineLimit(1)
+
+                                        Text(
+                                            focusBlockRange(
+                                                event
+                                            )
+                                        )
+                                        .font(
+                                            .caption2
+                                                .monospacedDigit()
+                                        )
+                                        .foregroundStyle(
+                                            .secondary
+                                        )
+                                    }
+
+                                    Spacer()
+
+                                    if event
+                                        .calendar
+                                        .allowsContentModifications {
+                                        Button {
+                                            state.showEventEditor(
+                                                event
+                                            )
+                                        } label: {
+                                            Image(
+                                                systemName:
+                                                    "pencil"
+                                            )
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+
+                                    if !event.isAllDay,
+                                       event.endDate
+                                        > Date() {
+                                        Button {
+                                            state.startFocus(
+                                                for: event
+                                            )
+                                        } label: {
+                                            Image(
+                                                systemName:
+                                                    "timer"
+                                            )
+                                        }
+                                        .buttonStyle(.plain)
+                                        .help(
+                                            "Start now"
+                                        )
+                                    }
+                                }
+                                .padding(
+                                    .horizontal,
+                                    11
+                                )
+                                .padding(
+                                    .vertical,
+                                    9
+                                )
+                                .background {
+                                    RoundedRectangle(
+                                        cornerRadius: 9
+                                    )
+                                    .fill(
+                                        Color.primary
+                                            .opacity(
+                                                0.032
+                                            )
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(20)
+            .frame(minWidth: 600)
+
+            VStack(spacing: 0) {
+                VStack(
+                    alignment: .leading,
+                    spacing: 4
+                ) {
+                    Text(
+                        "New Focus Block"
+                    )
+                    .font(
+                        .system(
+                            size: 16,
+                            weight: .semibold
+                        )
+                    )
+
+                    Text(
+                        "Saved to Apple Calendar. It will start Focus and distraction protection automatically."
                     )
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(
+                        .secondary
+                    )
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(
+                    maxWidth: .infinity,
+                    alignment: .leading
+                )
                 .padding(18)
 
                 Divider()
 
-                QuickAddView(state: state)
+                ScrollView {
+                    QuickAddView(
+                        state: state
+                    )
                     .padding(18)
-
-                Spacer()
+                }
             }
             .frame(
-                minWidth: 340,
-                idealWidth: 380,
-                maxWidth: 440
+                minWidth: 330,
+                idealWidth: 360,
+                maxWidth: 400
             )
         }
+        .onAppear {
+            state.draftIsFocusBlock = true
+            state.reloadUpcomingBlocks()
+        }
+    }
+
+    private func focusBlockRange(
+        _ event: EKEvent
+    ) -> String {
+        let day =
+            event.startDate.formatted(
+                .dateTime
+                    .weekday(.abbreviated)
+                    .day()
+                    .month(.abbreviated)
+            )
+        let start =
+            event.startDate.formatted(
+                date: .omitted,
+                time: .shortened
+            )
+        let end =
+            event.endDate.formatted(
+                date: .omitted,
+                time: .shortened
+            )
+
+        return "\(day) · \(start)–\(end) · \(event.calendar.title)"
     }
 }
 
