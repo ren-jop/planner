@@ -240,19 +240,17 @@ actor PlannerIntelligenceEngine {
                 encoding: .utf8
             ) ?? "{}"
 
-        return """
-        Optimize (input.scope.title).
-
-        Person's request:
-        (input.request.isEmpty
+        let requestText = input.request.isEmpty
             ? "Use upcoming goals, existing time blocks, free windows, and recent Focus history to create a balanced focus plan."
-            : input.request)
+            : input.request
 
-        Planner context JSON:
-        (context)
-
-        Choose exact times that fit inside free_windows. Do not invent calendar availability outside them.
-        """
+        return "Optimize " + input.scope.title + ".\n\n"
+            + "Person's request:\n"
+            + requestText
+            + "\n\nPlanner context JSON:\n"
+            + context
+            + "\n\nChoose exact times that fit inside free_windows. "
+            + "Do not invent calendar availability outside them."
     }
 
     private func decodeModelPlan(
