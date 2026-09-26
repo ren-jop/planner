@@ -3238,47 +3238,29 @@ private struct PlannerCalendarView: View {
         }
 
         for event in events {
-            if let clusterEnd,
-               event.startDate
-                >= clusterEnd {
+            if let currentClusterEnd = clusterEnd,
+               event.startDate >= currentClusterEnd {
                 appendCluster(cluster)
                 cluster.removeAll(
                     keepingCapacity: true
                 )
-                selfAssign(
-                    &clusterEnd,
-                    nil
-                )
+                clusterEnd = nil
             }
 
             cluster.append(event)
 
-            if let existing =
-                clusterEnd {
-                selfAssign(
-                    &clusterEnd,
-                    max(
-                        existing,
-                        event.endDate
-                    )
-                )
-            } else {
-                selfAssign(
-                    &clusterEnd,
+            if let currentClusterEnd = clusterEnd {
+                clusterEnd = max(
+                    currentClusterEnd,
                     event.endDate
                 )
+            } else {
+                clusterEnd = event.endDate
             }
         }
 
         appendCluster(cluster)
         return result
-    }
-
-    private func selfAssign<T>(
-        _ value: inout T,
-        _ newValue: T
-    ) {
-        value = newValue
     }
 }
 
