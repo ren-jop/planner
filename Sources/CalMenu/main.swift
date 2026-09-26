@@ -991,7 +991,28 @@ final class CalendarMenuState: NSObject, ObservableObject {
     @Published var draftTitle = ""
     @Published var draftStart: Date
     @Published var draftEnd: Date
+    @Published var draftAllDay = false
     @Published var draftIsFocusBlock = true
+    @Published var draftLocation = ""
+    @Published var draftNotes = ""
+    @Published var draftURL = ""
+    @Published var draftTimeZoneIdentifier =
+        TimeZone.current.identifier
+    @Published var draftAvailability:
+        PlannerEventAvailabilityChoice = .busy
+    @Published var draftAlert1Minutes = 10
+    @Published var draftAlert2Minutes = -1
+    @Published var draftRecurrenceKind:
+        PlannerRecurrenceKind = .none
+    @Published var draftRecurrenceInterval = 1
+    @Published var draftRecurrenceEndKind:
+        PlannerRecurrenceEndKind = .never
+    @Published var draftRecurrenceEndDate =
+        Date().addingTimeInterval(
+            30 * 24 * 60 * 60
+        )
+    @Published var draftRecurrenceCount = 10
+    @Published var draftDetailsExpanded = false
     @Published var statusMessage = ""
 
     @Published var focusLinked = false
