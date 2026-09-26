@@ -2293,16 +2293,37 @@ private struct PlannerSidebar: View {
     @ObservedObject var state: CalendarMenuState
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("PLANNER")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 10)
-                .padding(.bottom, 3)
+        VStack(
+            alignment: .leading,
+            spacing: 5
+        ) {
+            HStack(spacing: 8) {
+                Image(
+                    systemName:
+                        "calendar.day.timeline.left"
+                )
+                .font(
+                    .system(
+                        size: 15,
+                        weight: .semibold
+                    )
+                )
+
+                Text("Planner")
+                    .font(
+                        .system(
+                            size: 14,
+                            weight: .semibold
+                        )
+                    )
+            }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 9)
 
             sidebarButton(
                 "Dashboard",
-                icon: "rectangle.grid.2x2",
+                icon:
+                    "rectangle.grid.2x2",
                 id: "dashboard"
             )
             sidebarButton(
@@ -2317,43 +2338,77 @@ private struct PlannerSidebar: View {
             )
             sidebarButton(
                 "History",
-                icon: "clock.arrow.circlepath",
+                icon:
+                    "clock.arrow.circlepath",
                 id: "history"
             )
 
             Spacer()
 
             if state.focusActive {
-                VStack(alignment: .leading, spacing: 3) {
-                    Label(
-                        state.focusLabel ?? "Focus",
-                        systemImage: "timer"
-                    )
-                    .lineLimit(1)
+                VStack(
+                    alignment: .leading,
+                    spacing: 4
+                ) {
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(
+                                Color.accentColor
+                            )
+                            .frame(
+                                width: 6,
+                                height: 6
+                            )
+
+                        Text(
+                            state.focusLabel
+                            ?? "Focus"
+                        )
+                        .lineLimit(1)
+                    }
 
                     Text(
                         state.deadlockLinked
-                        ? "deadlock protecting"
-                        : "deadlock unavailable"
+                        ? "protected"
+                        : "focus active"
                     )
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(
+                        .secondary
+                    )
                 }
                 .font(.caption2)
-                .padding(10)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
             }
+
+            Divider()
+                .padding(.horizontal, 10)
 
             Button {
                 state.showSettingsWindow()
             } label: {
-                Label("Settings", systemImage: "gearshape")
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(spacing: 8) {
+                    Image(
+                        systemName:
+                            "gearshape"
+                    )
+                    .frame(width: 17)
+
+                    Text("Settings")
+                    Spacer()
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .padding(10)
+            .padding(.horizontal, 5)
         }
         .padding(.vertical, 12)
-        .frame(width: 170)
-        .background(Color.primary.opacity(0.025))
+        .frame(width: 154)
+        .background(
+            Color.primary.opacity(0.018)
+        )
     }
 
     private func sidebarButton(
@@ -2361,30 +2416,46 @@ private struct PlannerSidebar: View {
         icon: String,
         id: String
     ) -> some View {
-        Button {
+        let selected =
+            state.plannerPanel == id
+
+        return Button {
             state.setPlannerPanel(id)
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: icon)
-                    .frame(width: 16)
+                    .frame(width: 17)
 
                 Text(title)
+                    .font(
+                        .system(
+                            size: 12.5,
+                            weight:
+                                selected
+                                ? .semibold
+                                : .regular
+                        )
+                    )
 
                 Spacer()
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(
-                        state.plannerPanel == id
-                        ? Color.primary.opacity(0.09)
-                        : Color.clear
-                    )
-            )
+            .background {
+                RoundedRectangle(
+                    cornerRadius: 7
+                )
+                .fill(
+                    selected
+                    ? Color.primary
+                        .opacity(0.075)
+                    : Color.clear
+                )
+            }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, 6)
+        .padding(.horizontal, 5)
     }
 }
 
@@ -4183,107 +4254,357 @@ struct CalendarSettingsView: View {
     @ObservedObject var state: CalendarMenuState
 
     var body: some View {
-        Form {
-            Section("Month overview") {
-                Picker(
-                    "Show entries from",
-                    selection: Binding(
-                        get: {
-                            state.monthPreviewCalendarID
-                        },
-                        set: {
-                            state.setMonthPreviewCalendarID($0)
-                        }
+        ScrollView {
+            VStack(
+                alignment: .leading,
+                spacing: 16
+            ) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Planner settings")
+                        .font(
+                            .system(
+                                size: 20,
+                                weight: .semibold,
+                                design: .rounded
+                            )
+                        )
+
+                    Text(
+                        "Choose what Planner shows and where new blocks are saved."
                     )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+
+                settingsCard(
+                    title: "Visible calendars",
+                    subtitle:
+                        "The week, selected-day agenda and month previews show these calendars together."
                 ) {
-                    ForEach(
-                        state.calendars,
-                        id: \.calendarIdentifier
-                    ) { calendar in
-                        Text(calendar.title)
-                            .tag(calendar.calendarIdentifier)
+                    VStack(spacing: 2) {
+                        ForEach(
+                            state.calendars,
+                            id: \.calendarIdentifier
+                        ) { calendar in
+                            calendarVisibilityRow(
+                                calendar
+                            )
+                        }
+                    }
+
+                    HStack {
+                        Text(
+                            "\(state.visibleCalendarCount) of \(state.calendars.count) shown"
+                        )
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+
+                        Spacer()
+
+                        Button("Show all") {
+                            state.showAllCalendars()
+                        }
+                        .buttonStyle(.borderless)
+                        .controlSize(.small)
+                    }
+                    .padding(.top, 4)
+                }
+
+                settingsCard(
+                    title: "Dashboard goals",
+                    subtitle:
+                        "Choose the calendar used for upcoming goals and exams on the Dashboard."
+                ) {
+                    Picker(
+                        "Goals calendar",
+                        selection: Binding(
+                            get: {
+                                state.monthPreviewCalendarID
+                            },
+                            set: {
+                                state.setMonthPreviewCalendarID(
+                                    $0
+                                )
+                            }
+                        )
+                    ) {
+                        ForEach(
+                            state.calendars,
+                            id: \.calendarIdentifier
+                        ) { calendar in
+                            Text(calendar.title)
+                                .tag(
+                                    calendar
+                                        .calendarIdentifier
+                                )
+                        }
                     }
                 }
 
-                Text(
-                    "Only this calendar is written inside the month cells. Day view still shows every calendar."
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-
-            Section("Assigned time blocks") {
-                Picker(
-                    "Future blocks calendar",
-                    selection: Binding(
-                        get: {
-                            state.futureCalendarID
-                        },
-                        set: {
-                            state.setFutureCalendarID($0)
-                        }
-                    )
+                settingsCard(
+                    title: "Time blocks",
+                    subtitle:
+                        "Assigned blocks can live in one calendar while the week view shows several."
                 ) {
-                    ForEach(
-                        state.calendars,
-                        id: \.calendarIdentifier
-                    ) { calendar in
-                        Text(calendar.title)
-                            .tag(calendar.calendarIdentifier)
+                    Picker(
+                        "Assigned blocks",
+                        selection: Binding(
+                            get: {
+                                state.futureCalendarID
+                            },
+                            set: {
+                                state.setFutureCalendarID(
+                                    $0
+                                )
+                            }
+                        )
+                    ) {
+                        ForEach(
+                            state.calendars,
+                            id: \.calendarIdentifier
+                        ) { calendar in
+                            Text(calendar.title)
+                                .tag(
+                                    calendar
+                                        .calendarIdentifier
+                                )
+                        }
+                    }
+
+                    Picker(
+                        "New blocks",
+                        selection: Binding(
+                            get: {
+                                state.selectedCalendarID
+                            },
+                            set: {
+                                state.setDefaultCreateCalendarID(
+                                    $0
+                                )
+                            }
+                        )
+                    ) {
+                        ForEach(
+                            state.writableCalendars,
+                            id: \.calendarIdentifier
+                        ) { calendar in
+                            Text(calendar.title)
+                                .tag(
+                                    calendar
+                                        .calendarIdentifier
+                                )
+                        }
                     }
                 }
 
-                Text(
-                    "The Time Blocks screen and Dashboard read assigned work from this calendar for the next 180 days."
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-
-            Section("New time blocks") {
-                Picker(
-                    "Default calendar",
-                    selection: Binding(
-                        get: {
-                            state.selectedCalendarID
-                        },
-                        set: {
-                            state.setDefaultCreateCalendarID($0)
-                        }
-                    )
+                settingsCard(
+                    title: "Integrations",
+                    subtitle:
+                        "Planner can hand scheduled work to Focus and show deadlock protection state."
                 ) {
-                    ForEach(
-                        state.writableCalendars,
-                        id: \.calendarIdentifier
-                    ) { calendar in
-                        Text(calendar.title)
-                            .tag(calendar.calendarIdentifier)
-                    }
+                    integrationRow(
+                        "Focus",
+                        ready:
+                            state.focusLinked
+                    )
+
+                    integrationRow(
+                        "deadlock",
+                        ready:
+                            state.deadlockLinked
+                    )
                 }
             }
-
-            Section("Integration") {
-                LabeledContent(
-                    "Focus",
-                    value: state.focusLinked
-                        ? "Ready"
-                        : "Not found"
-                )
-
-                LabeledContent(
-                    "deadlock",
-                    value: state.deadlockLinked
-                        ? "Ready"
-                        : "Unavailable"
-                )
-            }
+            .padding(20)
         }
-        .formStyle(.grouped)
-        .padding(12)
-        .frame(width: 460, height: 430)
+        .frame(
+            width: 500,
+            height: 560
+        )
+        .background(
+            Color(
+                nsColor:
+                    .windowBackgroundColor
+            )
+        )
         .onAppear {
             state.refreshIntegrationStatus()
         }
+    }
+
+    private func calendarVisibilityRow(
+        _ calendar: EKCalendar
+    ) -> some View {
+        let visible =
+            state.isCalendarVisible(
+                calendar
+            )
+        let color =
+            calendarColor(calendar)
+
+        return Button {
+            state.toggleCalendarVisibility(
+                calendar
+            )
+        } label: {
+            HStack(spacing: 9) {
+                Circle()
+                    .fill(color)
+                    .frame(
+                        width: 8,
+                        height: 8
+                    )
+
+                VStack(
+                    alignment: .leading,
+                    spacing: 1
+                ) {
+                    Text(calendar.title)
+                        .foregroundStyle(
+                            .primary
+                        )
+                        .lineLimit(1)
+
+                    Text(
+                        calendar.source.title
+                    )
+                    .font(.caption2)
+                    .foregroundStyle(
+                        .secondary
+                    )
+                    .lineLimit(1)
+                }
+
+                Spacer()
+
+                Image(
+                    systemName:
+                        visible
+                        ? "checkmark.circle.fill"
+                        : "circle"
+                )
+                .foregroundStyle(
+                    visible
+                    ? color
+                    : Color.secondary
+                )
+            }
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button(
+                "Show only \(calendar.title)"
+            ) {
+                state.showOnlyCalendar(
+                    calendar
+                )
+            }
+        }
+    }
+
+    private func integrationRow(
+        _ name: String,
+        ready: Bool
+    ) -> some View {
+        HStack {
+            Text(name)
+
+            Spacer()
+
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(
+                        ready
+                        ? Color.green
+                        : Color.secondary
+                    )
+                    .frame(
+                        width: 6,
+                        height: 6
+                    )
+
+                Text(
+                    ready
+                    ? "Ready"
+                    : "Unavailable"
+                )
+                .font(.caption)
+                .foregroundStyle(
+                    .secondary
+                )
+            }
+        }
+        .padding(.vertical, 3)
+    }
+
+    @ViewBuilder
+    private func settingsCard<Content: View>(
+        title: String,
+        subtitle: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(
+            alignment: .leading,
+            spacing: 10
+        ) {
+            VStack(
+                alignment: .leading,
+                spacing: 2
+            ) {
+                Text(title)
+                    .font(
+                        .system(
+                            size: 13,
+                            weight: .semibold
+                        )
+                    )
+
+                Text(subtitle)
+                    .font(.caption2)
+                    .foregroundStyle(
+                        .secondary
+                    )
+                    .fixedSize(
+                        horizontal: false,
+                        vertical: true
+                    )
+            }
+
+            content()
+        }
+        .padding(14)
+        .frame(
+            maxWidth: .infinity,
+            alignment: .leading
+        )
+        .background {
+            RoundedRectangle(
+                cornerRadius: 10
+            )
+            .fill(
+                Color.primary
+                    .opacity(0.04)
+            )
+        }
+    }
+
+    private func calendarColor(
+        _ calendar: EKCalendar
+    ) -> Color {
+        if let cgColor =
+            calendar.cgColor,
+           let nsColor =
+            NSColor(
+                cgColor: cgColor
+            ) {
+            return Color(
+                nsColor: nsColor
+            )
+        }
+
+        return Color.accentColor
     }
 }
 
