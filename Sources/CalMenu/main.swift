@@ -607,6 +607,7 @@ final class CalendarMenuState: NSObject, ObservableObject {
     @Published var plannerInspectorMode = "agenda"
     @Published var plannerInspectorPresented = false
     @Published var plannerFocusOnly = false
+    @Published var suggestionScope: PlannerAIScope = .today
     @Published var aiPlan: PlannerAIPlan?
     @Published var aiIsPlanning = false
     @Published var aiStatus = PlannerIntelligenceEngine.backendDescription()
@@ -4483,6 +4484,9 @@ private struct PlannerCalendarView: View {
                     .frame(
                         minWidth:
                             geometry.size.width,
+                        alignment: .top
+                    )
+                    .frame(
                         height:
                             geometry.size.height,
                         alignment: .top
@@ -4723,7 +4727,9 @@ private struct PlannerCalendarView: View {
             }
             .padding(.vertical, 2)
             .frame(
-                maxWidth: .infinity,
+                maxWidth: .infinity
+            )
+            .frame(
                 height: dayHeaderHeight
             )
             .background(
@@ -5497,7 +5503,6 @@ private struct PlannerCalendarView: View {
 
 private struct PlannerSuggestionsView: View {
     @ObservedObject var state: CalendarMenuState
-    @State private var scope: PlannerAIScope = .today
 
     var body: some View {
         VStack(spacing: 0) {
@@ -5526,7 +5531,21 @@ private struct PlannerSuggestionsView: View {
 
                 Spacer()
 
-                Picker("Range", selection: $scope) {
+                Picker(
+                    "Range",
+                    selection: Binding(
+                        get: {
+                            state.suggestionScope
+                        },
+                        set: { newScope in
+                            state.suggestionScope =
+                                newScope
+                            state.runAIPlanner(
+                                scope: newScope
+                            )
+                        }
+                    )
+                ) {
                     Text("Today")
                         .tag(PlannerAIScope.today)
                     Text("Week")
@@ -5537,7 +5556,10 @@ private struct PlannerSuggestionsView: View {
                 .frame(width: 150)
 
                 Button {
-                    state.runAIPlanner(scope: scope)
+                    state.runAIPlanner(
+                        scope:
+                            state.suggestionScope
+                    )
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }
@@ -5616,11 +5638,11 @@ private struct PlannerSuggestionsView: View {
             if state.aiPlan == nil
                 && !state.aiIsPlanning
                 && state.accessGranted {
-                state.runAIPlanner(scope: scope)
+                state.runAIPlanner(
+                    scope:
+                        state.suggestionScope
+                )
             }
-        }
-        .onChange(of: scope) { newScope in
-            state.runAIPlanner(scope: newScope)
         }
     }
 
