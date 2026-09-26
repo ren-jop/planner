@@ -784,6 +784,24 @@ final class EventEditorModel: ObservableObject {
     @Published var calendarID: String
     @Published var focusBlock: Bool
 
+    @Published var location: String
+    @Published var notes: String
+    @Published var urlText: String
+    @Published var timeZoneIdentifier: String
+    @Published var availability: PlannerEventAvailabilityChoice
+
+    @Published var alert1Minutes: Int
+    @Published var alert2Minutes: Int
+    @Published var alarmsChanged = false
+
+    @Published var recurrenceKind: PlannerRecurrenceKind
+    @Published var recurrenceInterval: Int
+    @Published var recurrenceEndKind: PlannerRecurrenceEndKind
+    @Published var recurrenceEndDate: Date
+    @Published var recurrenceCount: Int
+    @Published var recurrenceChanged = false
+    @Published var editScope: PlannerEventEditScope
+
     init(
         event: EKEvent,
         focusBlock: Bool
@@ -793,8 +811,141 @@ final class EventEditorModel: ObservableObject {
         self.start = event.startDate
         self.end = event.endDate
         self.allDay = event.isAllDay
-        self.calendarID = event.calendar.calendarIdentifier
+        self.calendarID =
+            event.calendar.calendarIdentifier
         self.focusBlock = focusBlock
+
+        self.location = event.location ?? ""
+        self.notes = event.notes ?? ""
+        self.urlText =
+            event.url?.absoluteString ?? ""
+        self.timeZoneIdentifier =
+            event.timeZone?.identifier ?? ""
+        self.availability =
+            PlannerEventAvailabilityChoice(
+                event.availability
+            )
+
+        let alerts =
+            plannerAlertMinutes(from: event)
+        self.alert1Minutes =
+            alerts.first ?? -1
+        self.alert2Minutes =
+            alerts.dropFirst().first ?? -1
+
+        let rule =
+            event.recurrenceRules?.first
+        self.recurrenceKind =
+            plannerRecurrenceKind(from: rule)
+        self.recurrenceInterval =
+            max(1, rule?.interval ?? 1)
+
+        if let recurrenceEnd =
+            rule?.recurrenceEnd {
+            if let date =
+                recurrenceEnd.endDate {
+                self.recurrenceEndKind = .date
+                self.recurrenceEndDate = date
+                self.recurrenceCount = 10
+            } else if recurrenceEnd
+                .occurrenceCount > 0 {
+                self.recurrenceEndKind = .count
+                self.recurrenceEndDate =
+                    Calendar.current.date(
+                        byAdding: .month,
+                        value: 1,
+                        to: event.startDate
+                    ) ?? event.startDate
+                self.recurrenceCount =
+                    recurrenceEnd.occurrenceCount
+            } else {
+                self.recurrenceEndKind = .never
+                self.recurrenceEndDate =
+                    Calendar.current.date(
+                        byAdding: .month,
+                        value: 1,
+                        to: event.startDate
+                    ) ?? event.startDate
+                self.recurrenceCount = 10
+            }
+        } else {
+            self.recurrenceEndKind = .never
+            self.recurrenceEndDate =
+                Calendar.current.date(
+                    byAdding: .month,
+                    value: 1,
+                    to: event.startDate
+                ) ?? event.startDate
+            self.recurrenceCount = 10
+        }
+
+        self.editScope = .thisEvent
+    }
+
+    func setRecurrenceKind(
+        _ value: PlannerRecurrenceKind
+    ) {
+        recurrenceKind = value
+        recurrenceChanged = true
+        if event.hasRecurrenceRules {
+            editScope = .futureEvents
+        }
+    }
+
+    func setRecurrenceInterval(
+        _ value: Int
+    ) {
+        recurrenceInterval =
+            max(1, value)
+        recurrenceChanged = true
+        if event.hasRecurrenceRules {
+            editScope = .futureEvents
+        }
+    }
+
+    func setRecurrenceEndKind(
+        _ value: PlannerRecurrenceEndKind
+    ) {
+        recurrenceEndKind = value
+        recurrenceChanged = true
+        if event.hasRecurrenceRules {
+            editScope = .futureEvents
+        }
+    }
+
+    func setRecurrenceEndDate(
+        _ value: Date
+    ) {
+        recurrenceEndDate = value
+        recurrenceChanged = true
+        if event.hasRecurrenceRules {
+            editScope = .futureEvents
+        }
+    }
+
+    func setRecurrenceCount(
+        _ value: Int
+    ) {
+        recurrenceCount =
+            max(1, value)
+        recurrenceChanged = true
+        if event.hasRecurrenceRules {
+            editScope = .futureEvents
+        }
+    }
+
+    func setAlert1Minutes(
+        _ value: Int
+    ) {
+        alert1Minutes = value
+        alarmsChanged = true
+    }
+
+    func setAlert2Minutes(
+        _ value: Int
+    ) {
+        alert2Minutes = value
+        alarmsChanged = true
     }
 }
 
