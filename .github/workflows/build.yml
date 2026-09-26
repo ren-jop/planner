@@ -9,5 +9,11 @@ jobs:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
+      - name: Reject SwiftUI State macro dependency
+        run: |
+          if grep -R --line-number '@State' Sources; then
+            echo "Planner avoids @State so it builds with Command Line Tools installations missing SwiftUIMacros."
+            exit 1
+          fi
       - name: Build and package release
         run: ./build.sh
