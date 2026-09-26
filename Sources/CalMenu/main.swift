@@ -1628,6 +1628,10 @@ final class CalendarMenuState: NSObject, ObservableObject {
         draftEnd = suggestion.end
         plannerPanel = "calendar"
         plannerInspectorMode = "add"
+        plannerInspectorPresented = true
+        draftIsFocusBlock =
+            suggestion.category == "deep-work"
+            || suggestion.category == "study"
         statusMessage =
             "AI suggestion loaded as a draft. Review it before adding."
     }
@@ -1680,6 +1684,15 @@ final class CalendarMenuState: NSObject, ObservableObject {
                 span: .thisEvent,
                 commit: true
             )
+
+            if suggestion.category == "deep-work"
+                || suggestion.category == "study" {
+                setFocusBlock(
+                    event,
+                    enabled: true,
+                    autoStart: true
+                )
+            }
 
             if let plan = aiPlan {
                 aiPlan = PlannerAIPlan(
@@ -2069,36 +2082,53 @@ final class CalendarMenuState: NSObject, ObservableObject {
     }
 
     func reloadUpcomingBlocks() {
-        guard accessGranted,
-              let sourceCalendar = calendars.first(where: {
-                  $0.calendarIdentifier == futureCalendarID
-              })
-        else {
+        guard accessGranted else {
             upcomingBlocks = []
             return
         }
 
         let now = Date()
-        let start = now.addingTimeInterval(-12 * 60 * 60)
-        guard let end = calendar.date(byAdding: .day, value: 180, to: now)
+        let start =
+            now.addingTimeInterval(
+                -12 * 60 * 60
+            )
+        guard let end =
+                calendar.date(
+                    byAdding: .day,
+                    value: 180,
+                    to: now
+                )
         else {
             upcomingBlocks = []
             return
         }
 
-        let predicate = store.predicateForEvents(
-            withStart: start,
-            end: end,
-            calendars: [sourceCalendar]
-        )
+        let predicate =
+            store.predicateForEvents(
+                withStart: start,
+                end: end,
+                calendars: nil
+            )
 
-        upcomingBlocks = store.events(matching: predicate)
-            .filter { $0.endDate > now }
+        upcomingBlocks =
+            store.events(
+                matching: predicate
+            )
+            .filter {
+                $0.endDate > now
+                && isFocusBlock($0)
+            }
             .sorted {
-                if $0.startDate != $1.startDate {
-                    return $0.startDate < $1.startDate
+                if $0.startDate
+                    != $1.startDate {
+                    return $0.startDate
+                        < $1.startDate
                 }
-                return ($0.title ?? "") < ($1.title ?? "")
+                return (
+                    $0.title ?? ""
+                ) < (
+                    $1.title ?? ""
+                )
             }
             .prefix(250)
             .map { $0 }
@@ -2445,10 +2475,25 @@ final class CalendarMenuState: NSObject, ObservableObject {
 
         do {
             try store.save(event, span: .thisEvent, commit: true)
+
+            if draftIsFocusBlock
+                || startFocusAfterSave {
+                setFocusBlock(
+                    event,
+                    enabled: true,
+                    autoStart: true
+                )
+            }
+
             draftTitle = ""
-            statusMessage = startFocusAfterSave
-                ? "Added · starting Focus…"
-                : "Added."
+            statusMessage =
+                (draftIsFocusBlock || startFocusAfterSave)
+                ? (
+                    startFocusAfterSave
+                    ? "Focus Block added · starting Focus…"
+                    : "Focus Block added · will start automatically."
+                )
+                : "Event added."
 
             reloadVisibleData()
             reloadWeekEvents()
@@ -2463,6 +2508,8 @@ final class CalendarMenuState: NSObject, ObservableObject {
             if startFocusAfterSave {
                 startFocus(for: event)
             }
+
+            draftIsFocusBlock = true
         } catch {
             statusMessage = error.localizedDescription
         }
@@ -2474,7 +2521,8 @@ final class CalendarMenuState: NSObject, ObservableObject {
         start: Date,
         end: Date,
         allDay: Bool,
-        calendarID: String
+        calendarID: String,
+        focusBlock: Bool
     ) -> Bool {
         let trimmed = title.trimmingCharacters(
             in: .whitespacesAndNewlines
@@ -2524,7 +2572,15 @@ final class CalendarMenuState: NSObject, ObservableObject {
 
         do {
             try store.save(event, span: .thisEvent, commit: true)
-            statusMessage = "Updated."
+            setFocusBlock(
+                event,
+                enabled: focusBlock,
+                autoStart: true
+            )
+            statusMessage =
+                focusBlock
+                ? "Updated Focus Block."
+                : "Updated."
             reloadVisibleData()
             reloadWeekEvents()
             reloadUpcomingBlocks()
@@ -2542,7 +2598,13 @@ final class CalendarMenuState: NSObject, ObservableObject {
         }
 
         do {
+            let id =
+                event.calendarItemIdentifier
             try store.remove(event, span: .thisEvent, commit: true)
+            focusBlockMetadata.removeValue(
+                forKey: id
+            )
+            saveFocusBlockMetadata()
             statusMessage = "Deleted."
             reloadVisibleData()
             reloadWeekEvents()
@@ -2624,8 +2686,14 @@ final class CalendarMenuState: NSObject, ObservableObject {
         reloadWeekEvents()
     }
 
-    func startFocus(for event: EKEvent) {
+    func startFocus(
+        for event: EKEvent,
+        automatic: Bool = false
+    ) {
         guard !event.isAllDay else {
+            if automatic {
+                autoFocusLaunchInFlight = false
+            }
             statusMessage =
                 "All-day events do not have a focus duration."
             return
@@ -2634,12 +2702,18 @@ final class CalendarMenuState: NSObject, ObservableObject {
         guard let eventStart = event.startDate,
               let eventEnd = event.endDate
         else {
+            if automatic {
+                autoFocusLaunchInFlight = false
+            }
             statusMessage =
                 "That event does not have a valid time range."
             return
         }
 
         guard eventEnd > Date() else {
+            if automatic {
+                autoFocusLaunchInFlight = false
+            }
             statusMessage = "That event has already ended."
             return
         }
@@ -2727,12 +2801,24 @@ final class CalendarMenuState: NSObject, ObservableObject {
                 DispatchQueue.main.async { [weak self] in
                     guard let self else { return }
 
+                    if automatic {
+                        self.autoFocusLaunchInFlight = false
+                    }
+
                     if status == 0 {
+                        if self.isFocusBlock(event) {
+                            self.markFocusBlockTriggered(
+                                event
+                            )
+                        }
+
                         let suffix = self.deadlockLinked
                             ? " · distractions locked"
                             : " · deadlock unavailable"
                         self.statusMessage =
-                            "Focus started\(suffix)"
+                            automatic
+                            ? "Focus Block started automatically\(suffix)"
+                            : "Focus started\(suffix)"
                     } else {
                         self.statusMessage =
                             stderr?.isEmpty == false
@@ -2746,8 +2832,12 @@ final class CalendarMenuState: NSObject, ObservableObject {
                 let message = error.localizedDescription
 
                 DispatchQueue.main.async { [weak self] in
-                    self?.statusMessage = message
-                    self?.refreshIntegrationStatus()
+                    guard let self else { return }
+                    if automatic {
+                        self.autoFocusLaunchInFlight = false
+                    }
+                    self.statusMessage = message
+                    self.refreshIntegrationStatus()
                 }
             }
         }
@@ -2758,7 +2848,10 @@ final class CalendarMenuState: NSObject, ObservableObject {
             editorWindowController.close()
         }
 
-        let model = EventEditorModel(event: event)
+        let model = EventEditorModel(
+            event: event,
+            focusBlock: isFocusBlock(event)
+        )
 
         let window = NSWindow(
             contentRect: NSRect(
