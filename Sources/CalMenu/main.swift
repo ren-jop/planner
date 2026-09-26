@@ -2586,41 +2586,179 @@ final class CalendarMenuState: NSObject, ObservableObject {
         reloadWeekEvents()
     }
 
-    func createBlock(startFocusAfterSave: Bool = false) {
-        let trimmed = draftTitle.trimmingCharacters(
-            in: .whitespacesAndNewlines
-        )
+    func createBlock(
+        startFocusAfterSave: Bool = false
+    ) {
+        let trimmed =
+            draftTitle.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
 
         guard !trimmed.isEmpty else {
-            statusMessage = "Give the block a title."
+            statusMessage =
+                "Give the event a title."
             return
         }
 
-        guard draftEnd > draftStart else {
-            statusMessage = "End time must be after start time."
+        guard let target =
+                writableCalendars.first(
+                    where: {
+                        $0.calendarIdentifier
+                            == selectedCalendarID
+                    }
+                )
+        else {
+            statusMessage =
+                "Choose a writable calendar."
             return
         }
 
-        guard let target = writableCalendars.first(where: {
-            $0.calendarIdentifier == selectedCalendarID
-        }) else {
-            statusMessage = "Choose a writable calendar."
+        let normalizedStart: Date
+        let normalizedEnd: Date
+
+        if draftAllDay {
+            normalizedStart =
+                calendar.startOfDay(
+                    for: draftStart
+                )
+            let candidateEnd =
+                calendar.startOfDay(
+                    for: draftEnd
+                )
+            normalizedEnd =
+                candidateEnd > normalizedStart
+                ? candidateEnd
+                : (
+                    calendar.date(
+                        byAdding: .day,
+                        value: 1,
+                        to: normalizedStart
+                    )
+                    ?? normalizedStart
+                        .addingTimeInterval(
+                            24 * 60 * 60
+                        )
+                )
+        } else {
+            guard draftEnd > draftStart else {
+                statusMessage =
+                    "End time must be after start time."
+                return
+            }
+
+            normalizedStart = draftStart
+            normalizedEnd = draftEnd
+        }
+
+        let trimmedURL =
+            draftURL.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+        let eventURL: URL?
+        if trimmedURL.isEmpty {
+            eventURL = nil
+        } else if let url =
+                    URL(string: trimmedURL),
+                  url.scheme != nil {
+            eventURL = url
+        } else {
+            statusMessage =
+                "Enter a full URL such as https://example.com."
+            return
+        }
+
+        let trimmedTimeZone =
+            draftTimeZoneIdentifier
+                .trimmingCharacters(
+                    in: .whitespacesAndNewlines
+                )
+        let eventTimeZone: TimeZone?
+        if trimmedTimeZone.isEmpty {
+            eventTimeZone = nil
+        } else if let zone =
+                    TimeZone(
+                        identifier:
+                            trimmedTimeZone
+                    ) {
+            eventTimeZone = zone
+        } else {
+            statusMessage =
+                "Unknown time zone. Use an IANA name such as Australia/Sydney, or leave it blank for a floating event."
             return
         }
 
         ensureCalendarVisible(target)
 
-        let event = EKEvent(eventStore: store)
+        let event =
+            EKEvent(eventStore: store)
         event.title = trimmed
         event.calendar = target
-        event.startDate = draftStart
-        event.endDate = draftEnd
+        event.startDate = normalizedStart
+        event.endDate = normalizedEnd
+        event.isAllDay = draftAllDay
+        event.location =
+            draftLocation
+                .trimmingCharacters(
+                    in: .whitespacesAndNewlines
+                )
+        event.notes =
+            draftNotes
+                .trimmingCharacters(
+                    in: .whitespacesAndNewlines
+                )
+        event.url = eventURL
+        event.timeZone = eventTimeZone
+        event.availability =
+            draftAvailability
+                .eventKitValue
+
+        for minutes in [
+            draftAlert1Minutes,
+            draftAlert2Minutes,
+        ] where minutes >= 0 {
+            event.addAlarm(
+                EKAlarm(
+                    relativeOffset:
+                        -TimeInterval(
+                            minutes * 60
+                        )
+                )
+            )
+        }
+
+        if let recurrence =
+            plannerRecurrenceRule(
+                kind:
+                    draftRecurrenceKind,
+                interval:
+                    draftRecurrenceInterval,
+                endKind:
+                    draftRecurrenceEndKind,
+                endDate:
+                    draftRecurrenceEndDate,
+                occurrenceCount:
+                    draftRecurrenceCount
+            ) {
+            event.addRecurrenceRule(
+                recurrence
+            )
+        }
 
         do {
-            try store.save(event, span: .thisEvent, commit: true)
+            try store.save(
+                event,
+                span: .thisEvent,
+                commit: true
+            )
 
-            if draftIsFocusBlock
-                || startFocusAfterSave {
+            let shouldFocus =
+                !draftAllDay
+                && (
+                    draftIsFocusBlock
+                    || startFocusAfterSave
+                )
+
+            if shouldFocus {
                 setFocusBlock(
                     event,
                     enabled: true,
@@ -2629,32 +2767,53 @@ final class CalendarMenuState: NSObject, ObservableObject {
             }
 
             draftTitle = ""
+            draftLocation = ""
+            draftNotes = ""
+            draftURL = ""
+            draftAllDay = false
+            draftRecurrenceKind = .none
+            draftRecurrenceInterval = 1
+            draftRecurrenceEndKind = .never
+            draftRecurrenceCount = 10
+            draftAlert1Minutes = 10
+            draftAlert2Minutes = -1
+
             statusMessage =
-                (draftIsFocusBlock || startFocusAfterSave)
+                shouldFocus
                 ? (
                     startFocusAfterSave
                     ? "Focus Block added · starting Focus…"
                     : "Focus Block added · will start automatically."
                 )
-                : "Event added."
+                : "Event added and synced through Apple Calendar."
 
             reloadVisibleData()
             reloadWeekEvents()
             reloadUpcomingBlocks()
 
-            let duration = draftEnd.timeIntervalSince(draftStart)
-            draftStart = draftEnd
-            draftEnd = draftStart.addingTimeInterval(
-                max(duration, 30 * 60)
-            )
+            let duration =
+                normalizedEnd.timeIntervalSince(
+                    normalizedStart
+                )
+            draftStart = normalizedEnd
+            draftEnd =
+                draftStart
+                    .addingTimeInterval(
+                        max(
+                            duration,
+                            30 * 60
+                        )
+                    )
 
-            if startFocusAfterSave {
+            if startFocusAfterSave
+                && shouldFocus {
                 startFocus(for: event)
             }
 
             draftIsFocusBlock = true
         } catch {
-            statusMessage = error.localizedDescription
+            statusMessage =
+                error.localizedDescription
         }
     }
 
