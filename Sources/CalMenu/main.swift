@@ -2831,6 +2831,11 @@ private struct PlannerSidebar: View {
                 id: "blocks"
             )
             sidebarButton(
+                "AI Planner",
+                icon: "sparkles",
+                id: "ai"
+            )
+            sidebarButton(
                 "History",
                 icon:
                     "clock.arrow.circlepath",
@@ -4553,6 +4558,545 @@ private struct PlannerCalendarView: View {
     }
 }
 
+private struct PlannerAIView: View {
+    @ObservedObject var state: CalendarMenuState
+
+    private let suggestions = [
+        (
+            "Deep work",
+            "Prioritize demanding study or project work in my best focus windows. Keep transitions realistic and avoid overpacking the day."
+        ),
+        (
+            "Deadlines",
+            "Prioritize upcoming goals and deadlines. Break the most important work into focused blocks before the due dates."
+        ),
+        (
+            "Balanced",
+            "Create a balanced plan with deep work, lighter admin, exercise or recovery space, and enough unscheduled buffer."
+        ),
+        (
+            "Catch up",
+            "Help me recover from a behind schedule week. Protect the highest-value work and remove unnecessary context switching."
+        )
+    ]
+
+    var body: some View {
+        HSplitView {
+            requestPane
+                .frame(
+                    minWidth: 390,
+                    idealWidth: 450,
+                    maxWidth: 520
+                )
+
+            planPane
+                .frame(
+                    minWidth: 520,
+                    maxWidth: .infinity
+                )
+        }
+    }
+
+    private var requestPane: some View {
+        ScrollView {
+            VStack(
+                alignment: .leading,
+                spacing: 16
+            ) {
+                VStack(
+                    alignment: .leading,
+                    spacing: 4
+                ) {
+                    HStack(spacing: 8) {
+                        Image(
+                            systemName: "sparkles"
+                        )
+                        .font(
+                            .system(
+                                size: 18,
+                                weight: .semibold
+                            )
+                        )
+
+                        Text("AI Planner")
+                            .font(
+                                .system(
+                                    size: 22,
+                                    weight: .semibold,
+                                    design: .rounded
+                                )
+                            )
+                    }
+
+                    Text(
+                        "Local schedule optimization using Apple Calendar, upcoming goals and Focus history."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+
+                localStatusCard
+
+                VStack(
+                    alignment: .leading,
+                    spacing: 8
+                ) {
+                    Text("What should the plan optimize?")
+                        .font(
+                            .system(
+                                size: 12.5,
+                                weight: .semibold
+                            )
+                        )
+
+                    TextEditor(
+                        text: Binding(
+                            get: {
+                                state.aiRequest
+                            },
+                            set: {
+                                state.aiRequest = $0
+                            }
+                        )
+                    )
+                    .font(.system(size: 12.5))
+                    .frame(minHeight: 118)
+                    .padding(7)
+                    .background {
+                        RoundedRectangle(
+                            cornerRadius: 9
+                        )
+                        .fill(
+                            Color.primary
+                                .opacity(0.045)
+                        )
+                    }
+                    .overlay {
+                        RoundedRectangle(
+                            cornerRadius: 9
+                        )
+                        .stroke(
+                            Color.primary
+                                .opacity(0.08),
+                            lineWidth: 1
+                        )
+                    }
+
+                    Text(
+                        "Example: “I need 3 hours of chemistry, 2 hours of Rust, and football practice without destroying my evenings.”"
+                    )
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                }
+
+                VStack(
+                    alignment: .leading,
+                    spacing: 7
+                ) {
+                    Text("Quick direction")
+                        .font(
+                            .system(
+                                size: 12.5,
+                                weight: .semibold
+                            )
+                        )
+
+                    LazyVGrid(
+                        columns: [
+                            GridItem(
+                                .adaptive(
+                                    minimum: 120
+                                ),
+                                spacing: 7
+                            )
+                        ],
+                        alignment: .leading,
+                        spacing: 7
+                    ) {
+                        ForEach(
+                            Array(
+                                suggestions
+                                    .enumerated()
+                            ),
+                            id: \.offset
+                        ) { _, item in
+                            Button(item.0) {
+                                state.aiRequest =
+                                    item.1
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                    }
+                }
+
+                HStack(spacing: 8) {
+                    Button {
+                        state.runAIPlanner(
+                            scope: .today
+                        )
+                    } label: {
+                        Label(
+                            "Plan today",
+                            systemImage:
+                                "sun.max"
+                        )
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(
+                        state.aiIsPlanning
+                        || !state.accessGranted
+                    )
+
+                    Button {
+                        state.runAIPlanner(
+                            scope: .week
+                        )
+                    } label: {
+                        Label(
+                            "Optimize week",
+                            systemImage:
+                                "calendar.badge.clock"
+                        )
+                    }
+                    .buttonStyle(
+                        .borderedProminent
+                    )
+                    .disabled(
+                        state.aiIsPlanning
+                        || !state.accessGranted
+                    )
+                }
+
+                if state.aiIsPlanning {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.small)
+
+                        Text(
+                            "Analyzing free windows, goals and Focus rhythm…"
+                        )
+                        .font(.caption)
+                        .foregroundStyle(
+                            .secondary
+                        )
+                    }
+                }
+            }
+            .padding(20)
+        }
+    }
+
+    private var localStatusCard: some View {
+        VStack(
+            alignment: .leading,
+            spacing: 7
+        ) {
+            HStack {
+                Label(
+                    "Private by default",
+                    systemImage: "lock.shield"
+                )
+                .font(
+                    .system(
+                        size: 12,
+                        weight: .semibold
+                    )
+                )
+
+                Spacer()
+
+                Text("LOCAL")
+                    .font(
+                        .system(
+                            size: 9,
+                            weight: .bold,
+                            design: .rounded
+                        )
+                    )
+                    .padding(
+                        .horizontal,
+                        6
+                    )
+                    .padding(
+                        .vertical,
+                        3
+                    )
+                    .background {
+                        Capsule()
+                            .fill(
+                                Color.primary
+                                    .opacity(0.08)
+                            )
+                    }
+            }
+
+            Text(state.aiStatus)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Text(
+                "Planner sends no calendar or Focus data to an external API. Apple Intelligence is used on-device when available; otherwise the offline optimizer takes over."
+            )
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(
+                horizontal: false,
+                vertical: true
+            )
+        }
+        .padding(12)
+        .background {
+            RoundedRectangle(
+                cornerRadius: 10
+            )
+            .fill(
+                Color.primary
+                    .opacity(0.035)
+            )
+        }
+    }
+
+    private var planPane: some View {
+        VStack(spacing: 0) {
+            HStack {
+                VStack(
+                    alignment: .leading,
+                    spacing: 2
+                ) {
+                    Text("Suggested plan")
+                        .font(
+                            .system(
+                                size: 18,
+                                weight: .semibold
+                            )
+                        )
+
+                    Text(
+                        state.aiPlan?
+                            .summary
+                        ?? "Nothing changes until you explicitly add a suggestion."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                }
+
+                Spacer()
+
+                if let plan =
+                    state.aiPlan {
+                    Text(
+                        plan.backend.title
+                    )
+                    .font(.caption2)
+                    .foregroundStyle(
+                        .secondary
+                    )
+                }
+            }
+            .padding(
+                .horizontal,
+                18
+            )
+            .padding(
+                .vertical,
+                15
+            )
+
+            Divider()
+
+            if let plan =
+                state.aiPlan,
+               !plan.suggestions.isEmpty {
+                ScrollView {
+                    LazyVStack(
+                        spacing: 9
+                    ) {
+                        ForEach(
+                            plan.suggestions
+                        ) { suggestion in
+                            suggestionCard(
+                                suggestion
+                            )
+                        }
+                    }
+                    .padding(18)
+                }
+            } else {
+                VStack(spacing: 10) {
+                    Image(
+                        systemName:
+                            "calendar.badge.clock"
+                    )
+                    .font(
+                        .system(size: 28)
+                    )
+                    .foregroundStyle(
+                        .secondary
+                    )
+
+                    Text(
+                        state.aiIsPlanning
+                        ? "Building a plan…"
+                        : "Ask Planner to optimize today or the visible week."
+                    )
+                    .font(.callout)
+                    .foregroundStyle(
+                        .secondary
+                    )
+                }
+                .frame(
+                    maxWidth: .infinity,
+                    maxHeight: .infinity
+                )
+            }
+        }
+    }
+
+    private func suggestionCard(
+        _ suggestion:
+            PlannerAISuggestion
+    ) -> some View {
+        HStack(
+            alignment: .top,
+            spacing: 12
+        ) {
+            VStack(
+                alignment: .leading,
+                spacing: 5
+            ) {
+                HStack(
+                    spacing: 7
+                ) {
+                    Text(
+                        suggestion.title
+                    )
+                    .font(
+                        .system(
+                            size: 13.5,
+                            weight: .semibold
+                        )
+                    )
+
+                    Text(
+                        suggestion.category
+                            .replacingOccurrences(
+                                of: "-",
+                                with: " "
+                            )
+                    )
+                    .font(
+                        .system(
+                            size: 9,
+                            weight: .medium
+                        )
+                    )
+                    .foregroundStyle(
+                        .secondary
+                    )
+                    .padding(
+                        .horizontal,
+                        6
+                    )
+                    .padding(
+                        .vertical,
+                        2
+                    )
+                    .background {
+                        Capsule()
+                            .fill(
+                                Color.primary
+                                    .opacity(0.055)
+                            )
+                    }
+                }
+
+                Text(
+                    suggestion.start.formatted(
+                        .dateTime
+                            .weekday(.abbreviated)
+                            .day()
+                            .month(.abbreviated)
+                            .hour()
+                            .minute()
+                    )
+                    + " – "
+                    + suggestion.end.formatted(
+                        date: .omitted,
+                        time: .shortened
+                    )
+                    + " · "
+                    + "\(suggestion.durationMinutes)m"
+                )
+                .font(
+                    .caption
+                        .monospacedDigit()
+                )
+                .foregroundStyle(
+                    .secondary
+                )
+
+                Text(
+                    suggestion.reason
+                )
+                .font(.caption2)
+                .foregroundStyle(
+                    .secondary
+                )
+                .fixedSize(
+                    horizontal: false,
+                    vertical: true
+                )
+            }
+
+            Spacer(
+                minLength: 8
+            )
+
+            VStack(spacing: 6) {
+                Button("Add") {
+                    state.addAISuggestion(
+                        suggestion
+                    )
+                }
+                .buttonStyle(
+                    .borderedProminent
+                )
+                .controlSize(.small)
+
+                Button("Review") {
+                    state.prepareAISuggestion(
+                        suggestion
+                    )
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+            }
+        }
+        .padding(12)
+        .background {
+            RoundedRectangle(
+                cornerRadius: 10
+            )
+            .fill(
+                Color.primary
+                    .opacity(0.04)
+            )
+        }
+        .overlay {
+            RoundedRectangle(
+                cornerRadius: 10
+            )
+            .stroke(
+                Color.primary
+                    .opacity(0.07),
+                lineWidth: 1
+            )
+        }
+    }
+}
+
 private struct PlannerBlocksView: View {
     @ObservedObject var state: CalendarMenuState
 
@@ -4732,6 +5276,8 @@ struct CalendarPlannerView: View {
                     PlannerCalendarView(state: state)
                 case "blocks":
                     PlannerBlocksView(state: state)
+                case "ai":
+                    PlannerAIView(state: state)
                 case "history":
                     PlannerHistoryView(state: state)
                 default:
