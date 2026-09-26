@@ -7613,19 +7613,28 @@ private struct EventEditorView: View {
     let onClose: () -> Void
 
     var body: some View {
-        VStack(
-            alignment: .leading,
-            spacing: 14
-        ) {
+        VStack(spacing: 0) {
             HStack {
-                Text("Edit event")
-                    .font(
-                        .system(
-                            size: 18,
-                            weight: .semibold,
-                            design: .rounded
+                VStack(
+                    alignment: .leading,
+                    spacing: 2
+                ) {
+                    Text("Edit event")
+                        .font(
+                            .system(
+                                size: 19,
+                                weight: .semibold,
+                                design: .rounded
+                            )
                         )
-                    )
+
+                    if model.event
+                        .hasRecurrenceRules {
+                        Text("Recurring event")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
 
                 Spacer()
 
@@ -7635,101 +7644,500 @@ private struct EventEditorView: View {
                         systemImage: "lock.fill"
                     )
                     .font(.caption2)
-                    .foregroundStyle(
-                        .secondary
+                    .foregroundStyle(.secondary)
+                }
+            }
+            .padding(
+                .horizontal,
+                20
+            )
+            .padding(
+                .top,
+                18
+            )
+            .padding(
+                .bottom,
+                12
+            )
+
+            Divider()
+
+            ScrollView {
+                VStack(
+                    alignment: .leading,
+                    spacing: 14
+                ) {
+                    TextField(
+                        "Title",
+                        text: $model.title
                     )
-                }
-            }
-
-            TextField(
-                "Title",
-                text: $model.title
-            )
-            .textFieldStyle(
-                .roundedBorder
-            )
-
-            Toggle(
-                "All day",
-                isOn: $model.allDay
-            )
-
-            Toggle(
-                "Focus Block · auto-start Focus + deadlock",
-                isOn: $model.focusBlock
-            )
-            .disabled(model.allDay)
-            .help(
-                "When this event begins, Planner starts Focus for the remaining scheduled time. Focus activates deadlock distraction protection."
-            )
-
-            if model.allDay {
-                DatePicker(
-                    "Start",
-                    selection: $model.start,
-                    displayedComponents: [
-                        .date
-                    ]
-                )
-
-                DatePicker(
-                    "End",
-                    selection: $model.end,
-                    displayedComponents: [
-                        .date
-                    ]
-                )
-            } else {
-                DatePicker(
-                    "Start",
-                    selection: $model.start,
-                    displayedComponents: [
-                        .date,
-                        .hourAndMinute
-                    ]
-                )
-
-                DatePicker(
-                    "End",
-                    selection: $model.end,
-                    displayedComponents: [
-                        .date,
-                        .hourAndMinute
-                    ]
-                )
-            }
-
-            Picker(
-                "Calendar",
-                selection:
-                    $model.calendarID
-            ) {
-                ForEach(
-                    state.writableCalendars,
-                    id:
-                        \.calendarIdentifier
-                ) { calendar in
-                    Text(calendar.title)
-                        .tag(
-                            calendar
-                                .calendarIdentifier
+                    .textFieldStyle(
+                        .roundedBorder
+                    )
+                    .font(
+                        .system(
+                            size: 15,
+                            weight: .medium
                         )
+                    )
+
+                    GroupBox("Schedule") {
+                        VStack(
+                            alignment: .leading,
+                            spacing: 9
+                        ) {
+                            Toggle(
+                                "All day",
+                                isOn: Binding(
+                                    get: {
+                                        model.allDay
+                                    },
+                                    set: { value in
+                                        model.allDay =
+                                            value
+                                        if value {
+                                            model.focusBlock =
+                                                false
+                                        }
+                                    }
+                                )
+                            )
+
+                            DatePicker(
+                                "Start",
+                                selection:
+                                    $model.start,
+                                displayedComponents:
+                                    model.allDay
+                                    ? [.date]
+                                    : [
+                                        .date,
+                                        .hourAndMinute,
+                                    ]
+                            )
+
+                            DatePicker(
+                                "End",
+                                selection:
+                                    $model.end,
+                                displayedComponents:
+                                    model.allDay
+                                    ? [.date]
+                                    : [
+                                        .date,
+                                        .hourAndMinute,
+                                    ]
+                            )
+
+                            Picker(
+                                "Calendar",
+                                selection:
+                                    $model
+                                        .calendarID
+                            ) {
+                                ForEach(
+                                    state
+                                        .writableCalendars,
+                                    id:
+                                        \.calendarIdentifier
+                                ) { calendar in
+                                    Text(
+                                        calendar.title
+                                    )
+                                    .tag(
+                                        calendar
+                                            .calendarIdentifier
+                                    )
+                                }
+                            }
+
+                            TextField(
+                                "Time zone · blank = floating",
+                                text:
+                                    $model
+                                        .timeZoneIdentifier
+                            )
+                            .textFieldStyle(
+                                .roundedBorder
+                            )
+                        }
+                        .padding(.top, 3)
+                    }
+
+                    GroupBox("Repeat") {
+                        VStack(
+                            alignment: .leading,
+                            spacing: 9
+                        ) {
+                            Picker(
+                                "Repeat",
+                                selection: Binding(
+                                    get: {
+                                        model.recurrenceKind
+                                    },
+                                    set: {
+                                        model
+                                            .setRecurrenceKind(
+                                                $0
+                                            )
+                                    }
+                                )
+                            ) {
+                                Text("Never")
+                                    .tag(
+                                        PlannerRecurrenceKind
+                                            .none
+                                    )
+                                Text("Daily")
+                                    .tag(
+                                        PlannerRecurrenceKind
+                                            .daily
+                                    )
+                                Text("Every weekday")
+                                    .tag(
+                                        PlannerRecurrenceKind
+                                            .weekdays
+                                    )
+                                Text("Weekly")
+                                    .tag(
+                                        PlannerRecurrenceKind
+                                            .weekly
+                                    )
+                                Text("Monthly")
+                                    .tag(
+                                        PlannerRecurrenceKind
+                                            .monthly
+                                    )
+                                Text("Yearly")
+                                    .tag(
+                                        PlannerRecurrenceKind
+                                            .yearly
+                                    )
+                            }
+
+                            if model.recurrenceKind
+                                != .none {
+                                Stepper(
+                                    "Every \(model.recurrenceInterval) \(recurrenceUnit)",
+                                    value: Binding(
+                                        get: {
+                                            model
+                                                .recurrenceInterval
+                                        },
+                                        set: {
+                                            model
+                                                .setRecurrenceInterval(
+                                                    $0
+                                                )
+                                        }
+                                    ),
+                                    in: 1...99
+                                )
+
+                                Picker(
+                                    "Ends",
+                                    selection: Binding(
+                                        get: {
+                                            model
+                                                .recurrenceEndKind
+                                        },
+                                        set: {
+                                            model
+                                                .setRecurrenceEndKind(
+                                                    $0
+                                                )
+                                        }
+                                    )
+                                ) {
+                                    Text("Never")
+                                        .tag(
+                                            PlannerRecurrenceEndKind
+                                                .never
+                                        )
+                                    Text("On date")
+                                        .tag(
+                                            PlannerRecurrenceEndKind
+                                                .date
+                                        )
+                                    Text("After count")
+                                        .tag(
+                                            PlannerRecurrenceEndKind
+                                                .count
+                                        )
+                                }
+
+                                if model
+                                    .recurrenceEndKind
+                                    == .date {
+                                    DatePicker(
+                                        "End repeat",
+                                        selection: Binding(
+                                            get: {
+                                                model
+                                                    .recurrenceEndDate
+                                            },
+                                            set: {
+                                                model
+                                                    .setRecurrenceEndDate(
+                                                        $0
+                                                    )
+                                            }
+                                        ),
+                                        displayedComponents: [
+                                            .date
+                                        ]
+                                    )
+                                } else if model
+                                    .recurrenceEndKind
+                                    == .count {
+                                    Stepper(
+                                        "After \(model.recurrenceCount) occurrences",
+                                        value: Binding(
+                                            get: {
+                                                model
+                                                    .recurrenceCount
+                                            },
+                                            set: {
+                                                model
+                                                    .setRecurrenceCount(
+                                                        $0
+                                                    )
+                                            }
+                                        ),
+                                        in: 1...999
+                                    )
+                                }
+                            }
+
+                            if model.event
+                                .hasRecurrenceRules {
+                                Picker(
+                                    "Apply edits to",
+                                    selection:
+                                        $model
+                                            .editScope
+                                ) {
+                                    Text("This event")
+                                        .tag(
+                                            PlannerEventEditScope
+                                                .thisEvent
+                                        )
+                                    Text(
+                                        "This and future events"
+                                    )
+                                    .tag(
+                                        PlannerEventEditScope
+                                            .futureEvents
+                                    )
+                                }
+
+                                Text(
+                                    "Existing custom recurrence details are preserved unless you change the Repeat controls. Changing Repeat applies from this event forward."
+                                )
+                                .font(.caption2)
+                                .foregroundStyle(
+                                    .secondary
+                                )
+                                .fixedSize(
+                                    horizontal: false,
+                                    vertical: true
+                                )
+                            }
+                        }
+                        .padding(.top, 3)
+                    }
+
+                    GroupBox("Details") {
+                        VStack(
+                            alignment: .leading,
+                            spacing: 9
+                        ) {
+                            TextField(
+                                "Location",
+                                text:
+                                    $model.location
+                            )
+                            .textFieldStyle(
+                                .roundedBorder
+                            )
+
+                            TextField(
+                                "URL",
+                                text:
+                                    $model.urlText
+                            )
+                            .textFieldStyle(
+                                .roundedBorder
+                            )
+
+                            Picker(
+                                "Show as",
+                                selection:
+                                    $model
+                                        .availability
+                            ) {
+                                Text("Busy")
+                                    .tag(
+                                        PlannerEventAvailabilityChoice
+                                            .busy
+                                    )
+                                Text("Free")
+                                    .tag(
+                                        PlannerEventAvailabilityChoice
+                                            .free
+                                    )
+                                Text("Tentative")
+                                    .tag(
+                                        PlannerEventAvailabilityChoice
+                                            .tentative
+                                    )
+                                Text("Unavailable")
+                                    .tag(
+                                        PlannerEventAvailabilityChoice
+                                            .unavailable
+                                    )
+                            }
+
+                            Text("Notes")
+                                .font(.caption)
+                                .foregroundStyle(
+                                    .secondary
+                                )
+
+                            TextEditor(
+                                text:
+                                    $model.notes
+                            )
+                            .font(
+                                .system(size: 12)
+                            )
+                            .frame(height: 86)
+                            .padding(5)
+                            .background {
+                                RoundedRectangle(
+                                    cornerRadius: 7
+                                )
+                                .fill(
+                                    Color.primary
+                                        .opacity(
+                                            0.04
+                                        )
+                                )
+                            }
+                        }
+                        .padding(.top, 3)
+                    }
+
+                    GroupBox("Alerts") {
+                        VStack(
+                            alignment: .leading,
+                            spacing: 8
+                        ) {
+                            alertPicker(
+                                "Alert",
+                                value:
+                                    model
+                                        .alert1Minutes,
+                                set: {
+                                    model
+                                        .setAlert1Minutes(
+                                            $0
+                                        )
+                                }
+                            )
+
+                            alertPicker(
+                                "Second alert",
+                                value:
+                                    model
+                                        .alert2Minutes,
+                                set: {
+                                    model
+                                        .setAlert2Minutes(
+                                            $0
+                                        )
+                                }
+                            )
+                        }
+                        .padding(.top, 3)
+                    }
+
+                    GroupBox("Focus") {
+                        VStack(
+                            alignment: .leading,
+                            spacing: 6
+                        ) {
+                            Toggle(
+                                "Focus Block · auto-start Focus + deadlock",
+                                isOn:
+                                    $model
+                                        .focusBlock
+                            )
+                            .disabled(model.allDay)
+
+                            Text(
+                                model.event.hasRecurrenceRules
+                                ? "For a recurring event, the Focus Block setting applies to the recurring series."
+                                : "When the event begins, Planner can start Focus for the remaining scheduled time."
+                            )
+                            .font(.caption2)
+                            .foregroundStyle(
+                                .secondary
+                            )
+                        }
+                        .padding(.top, 3)
+                    }
+
+                    if model.event.hasAttendees {
+                        GroupBox("Invitations") {
+                            Text(
+                                "Invitees and RSVP changes remain managed by Apple Calendar. Planner preserves them when you edit other fields."
+                            )
+                            .font(.caption)
+                            .foregroundStyle(
+                                .secondary
+                            )
+                            .fixedSize(
+                                horizontal: false,
+                                vertical: true
+                            )
+                            .padding(.top, 3)
+                        }
+                    }
+
+                    if !state.statusMessage
+                        .isEmpty {
+                        Text(
+                            state.statusMessage
+                        )
+                        .font(.caption)
+                        .foregroundStyle(
+                            .secondary
+                        )
+                        .lineLimit(3)
+                    }
                 }
+                .padding(20)
             }
 
-            if !state.statusMessage
-                .isEmpty {
-                Text(
-                    state.statusMessage
-                )
-                .font(.caption)
-                .foregroundStyle(
-                    .secondary
-                )
-                .lineLimit(2)
-            }
+            Divider()
 
-            HStack {
+            HStack(spacing: 8) {
+                Button("Delete") {
+                    state.deleteEvent(
+                        model.event,
+                        span:
+                            model.event
+                                .hasRecurrenceRules
+                            ? model
+                                .editScope
+                                .eventKitSpan
+                            : .thisEvent
+                    )
+                    onClose()
+                }
+                .foregroundStyle(.red)
+
                 Spacer()
 
                 Button("Cancel") {
@@ -7748,7 +8156,47 @@ private struct EventEditorView: View {
                             model.calendarID,
                         focusBlock:
                             !model.allDay
-                            && model.focusBlock
+                            && model.focusBlock,
+                        location:
+                            model.location,
+                        notes:
+                            model.notes,
+                        urlText:
+                            model.urlText,
+                        timeZoneIdentifier:
+                            model
+                                .timeZoneIdentifier,
+                        availability:
+                            model.availability,
+                        alert1Minutes:
+                            model
+                                .alert1Minutes,
+                        alert2Minutes:
+                            model
+                                .alert2Minutes,
+                        alarmsChanged:
+                            model
+                                .alarmsChanged,
+                        recurrenceKind:
+                            model
+                                .recurrenceKind,
+                        recurrenceInterval:
+                            model
+                                .recurrenceInterval,
+                        recurrenceEndKind:
+                            model
+                                .recurrenceEndKind,
+                        recurrenceEndDate:
+                            model
+                                .recurrenceEndDate,
+                        recurrenceCount:
+                            model
+                                .recurrenceCount,
+                        recurrenceChanged:
+                            model
+                                .recurrenceChanged,
+                        editScope:
+                            model.editScope
                     ) {
                         onClose()
                     }
@@ -7757,9 +8205,81 @@ private struct EventEditorView: View {
                     .defaultAction
                 )
             }
+            .padding(
+                .horizontal,
+                20
+            )
+            .padding(
+                .vertical,
+                12
+            )
         }
-        .padding(20)
-        .frame(width: 430)
+        .frame(
+            width: 520,
+            height: 720
+        )
+    }
+
+    private var recurrenceUnit: String {
+        switch model.recurrenceKind {
+        case .daily:
+            return model.recurrenceInterval
+                == 1
+                ? "day"
+                : "days"
+        case .weekdays, .weekly:
+            return model.recurrenceInterval
+                == 1
+                ? "week"
+                : "weeks"
+        case .monthly:
+            return model.recurrenceInterval
+                == 1
+                ? "month"
+                : "months"
+        case .yearly:
+            return model.recurrenceInterval
+                == 1
+                ? "year"
+                : "years"
+        case .none:
+            return "interval"
+        }
+    }
+
+    private func alertPicker(
+        _ title: String,
+        value: Int,
+        set: @escaping (Int) -> Void
+    ) -> some View {
+        Picker(
+            title,
+            selection: Binding(
+                get: {
+                    value
+                },
+                set: set
+            )
+        ) {
+            Text("None").tag(-1)
+            Text("At time").tag(0)
+            Text("5 minutes before")
+                .tag(5)
+            Text("10 minutes before")
+                .tag(10)
+            Text("15 minutes before")
+                .tag(15)
+            Text("30 minutes before")
+                .tag(30)
+            Text("1 hour before")
+                .tag(60)
+            Text("2 hours before")
+                .tag(120)
+            Text("1 day before")
+                .tag(1440)
+            Text("1 week before")
+                .tag(10080)
+        }
     }
 }
 
