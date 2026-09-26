@@ -2,7 +2,7 @@
 
 A small macOS planning app built around Apple Calendar.
 
-**Status:** v0.9.0 preview
+**Status:** v0.10.0 preview
 
 **Platform:** macOS 14+
 
@@ -43,6 +43,28 @@ macOS will ask for Calendar access on first use.
 - Shows recent Focus work.
 - Compares planned time with completed Focus sessions.
 - Detects Deadlock when it is installed.
+- Includes a local AI Planner that can optimize today or the visible week around existing Calendar events, upcoming goals and Focus history.
+- Uses Apple's on-device Foundation Models / Apple Intelligence when available, with an offline deterministic optimizer as fallback.
+- AI suggestions are proposal-only: nothing is added to Apple Calendar until you explicitly review or add it.
+
+## 0.10.0 local AI planner
+
+Planner now has an **AI Planner** workspace for local schedule optimization.
+
+It can:
+
+- optimize today or the visible week around existing Apple Calendar events;
+- use upcoming goal/deadline events and assigned time blocks as context;
+- learn a useful focus-block length and preferred time of day from recent completed Focus sessions;
+- understand a natural-language request such as “3 hours of chemistry and 2 hours of Rust this week, keep evenings light”;
+- preserve transition buffers around fixed events;
+- suggest exact blocks with a short reason and category;
+- review a suggestion as a normal editable draft before saving it;
+- add individual approved suggestions to Apple Calendar.
+
+On supported macOS versions with Apple Intelligence available, Planner uses Apple's **Foundation Models** framework and the on-device system language model. Calendar/Focus context is not sent to an external API. When the system model is unavailable, Planner falls back to its own offline scheduling optimizer.
+
+The AI never receives permission to invent calendar availability. Planner computes valid free windows first and validates every generated suggestion against those windows and the current EventKit schedule before it can be added.
 
 ## 0.9.0 calendar redesign
 
