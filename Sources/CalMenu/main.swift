@@ -101,6 +101,10 @@ final class CalendarMenuState: NSObject, ObservableObject {
     @Published var visibleCalendarIDs: Set<String> = []
     @Published var plannerPanel = "calendar"
     @Published var plannerInspectorMode = "agenda"
+    @Published var aiRequest = ""
+    @Published var aiPlan: PlannerAIPlan?
+    @Published var aiIsPlanning = false
+    @Published var aiStatus = PlannerIntelligenceEngine.backendDescription()
     @Published private(set) var weekEvents: [EKEvent] = []
 
     @Published private(set) var monthCellsCache: [MonthCell] = []
@@ -126,6 +130,7 @@ final class CalendarMenuState: NSObject, ObservableObject {
 
     private var eventStoreObserver: NSObjectProtocol?
     private var reloadWorkItem: DispatchWorkItem?
+    private let intelligence = PlannerIntelligenceEngine()
     private var allEventsByDay: [Date: [EKEvent]] = [:]
     private var plannerWindowController: NSWindowController?
     private var settingsWindowController: NSWindowController?
@@ -520,6 +525,12 @@ final class CalendarMenuState: NSObject, ObservableObject {
         case "calendar":
             reloadVisibleData()
             reloadWeekEvents()
+        case "ai":
+            reloadWeekEvents()
+            reloadGoalEvents()
+            reloadUpcomingBlocks()
+            loadFocusHistory()
+            aiStatus = PlannerIntelligenceEngine.backendDescription()
         case "dashboard":
             reloadOverviewData()
         default:
@@ -532,6 +543,479 @@ final class CalendarMenuState: NSObject, ObservableObject {
         reloadGoalEvents()
         loadFocusHistory()
         refreshIntegrationStatus()
+    }
+
+    func runAIPlanner(
+        scope: PlannerAIScope
+    ) {
+        guard accessGranted else {
+            statusMessage =
+                "Calendar access is required before Planner can optimize your schedule."
+            return
+        }
+
+        guard !aiIsPlanning else {
+            return
+        }
+
+        let input = makeAIInput(
+            scope: scope
+        )
+
+        guard !input.freeWindows.isEmpty else {
+            aiPlan = nil
+            aiStatus =
+                "No useful free windows found in \(scope.title)."
+            return
+        }
+
+        aiIsPlanning = true
+        aiPlan = nil
+        aiStatus =
+            "Planning privately on this Mac…"
+
+        let engine = intelligence
+
+        Task { [weak self] in
+            do {
+                let plan =
+                    try await engine.makePlan(
+                        input: input
+                    )
+
+                guard let self else {
+                    return
+                }
+
+                self.aiPlan = plan
+                self.aiIsPlanning = false
+                self.aiStatus =
+                    plan.backend.title
+            } catch {
+                guard let self else {
+                    return
+                }
+
+                self.aiIsPlanning = false
+                self.aiPlan = nil
+                self.aiStatus =
+                    error.localizedDescription
+            }
+        }
+    }
+
+    func prepareAISuggestion(
+        _ suggestion: PlannerAISuggestion
+    ) {
+        selectDate(suggestion.start)
+        draftTitle = suggestion.title
+        draftStart = suggestion.start
+        draftEnd = suggestion.end
+        plannerPanel = "calendar"
+        plannerInspectorMode = "add"
+        statusMessage =
+            "AI suggestion loaded as a draft. Review it before adding."
+    }
+
+    func addAISuggestion(
+        _ suggestion: PlannerAISuggestion
+    ) {
+        guard let target =
+                writableCalendars.first(
+                    where: {
+                        $0.calendarIdentifier
+                            == selectedCalendarID
+                    }
+                )
+        else {
+            aiStatus =
+                "Choose a writable calendar first."
+            return
+        }
+
+        let conflicts =
+            eventsOverlapping(
+                start: suggestion.start,
+                end: suggestion.end
+            )
+
+        guard conflicts.isEmpty else {
+            aiStatus =
+                "That suggestion now conflicts with another event. Re-run the plan."
+            return
+        }
+
+        ensureCalendarVisible(target)
+
+        let event =
+            EKEvent(eventStore: store)
+        event.title =
+            suggestion.title
+        event.calendar = target
+        event.startDate =
+            suggestion.start
+        event.endDate =
+            suggestion.end
+        event.notes =
+            "Suggested locally by Planner AI. \(suggestion.reason)"
+
+        do {
+            try store.save(
+                event,
+                span: .thisEvent,
+                commit: true
+            )
+
+            if let plan = aiPlan {
+                aiPlan = PlannerAIPlan(
+                    generatedAt:
+                        plan.generatedAt,
+                    scope:
+                        plan.scope,
+                    backend:
+                        plan.backend,
+                    summary:
+                        plan.summary,
+                    suggestions:
+                        plan.suggestions.filter {
+                            $0.id
+                                != suggestion.id
+                        }
+                )
+            }
+
+            aiStatus =
+                "Added \(suggestion.title)."
+            reloadVisibleData()
+            reloadWeekEvents()
+            reloadUpcomingBlocks()
+        } catch {
+            aiStatus =
+                error.localizedDescription
+        }
+    }
+
+    private func makeAIInput(
+        scope: PlannerAIScope
+    ) -> PlannerAIInput {
+        let now = Date()
+        let rangeStart: Date
+        let rangeEnd: Date
+
+        switch scope {
+        case .today:
+            rangeStart =
+                calendar.startOfDay(
+                    for: now
+                )
+            rangeEnd =
+                calendar.date(
+                    byAdding: .day,
+                    value: 1,
+                    to: rangeStart
+                )
+                ?? rangeStart
+                    .addingTimeInterval(
+                        24 * 60 * 60
+                    )
+
+        case .week:
+            rangeStart = weekStart
+            rangeEnd =
+                calendar.date(
+                    byAdding: .day,
+                    value: 7,
+                    to: rangeStart
+                )
+                ?? rangeStart
+                    .addingTimeInterval(
+                        7 * 24 * 60 * 60
+                    )
+        }
+
+        let predicate =
+            store.predicateForEvents(
+                withStart: rangeStart,
+                end: rangeEnd,
+                calendars: visibleCalendars
+            )
+        let events =
+            store.events(
+                matching: predicate
+            )
+            .sorted {
+                $0.startDate
+                    < $1.startDate
+            }
+
+        let eventSnapshots =
+            events.map(
+                aiEventSnapshot
+            )
+
+        let goalLimit =
+            calendar.date(
+                byAdding: .day,
+                value: 14,
+                to: rangeEnd
+            )
+            ?? rangeEnd
+
+        let goals =
+            goalEvents
+                .filter {
+                    $0.endDate >= now
+                    && $0.startDate
+                        <= goalLimit
+                }
+                .prefix(12)
+                .map(aiEventSnapshot)
+
+        let blocks =
+            upcomingBlocks
+                .filter {
+                    $0.startDate < rangeEnd
+                    && $0.endDate
+                        > rangeStart
+                }
+                .prefix(30)
+                .map(aiEventSnapshot)
+
+        let focus =
+            focusHistory
+                .prefix(50)
+                .map {
+                    PlannerAIFocusSnapshot(
+                        date: $0.date,
+                        minutes: $0.minutes,
+                        completed:
+                            $0.kind
+                            == "completed",
+                        rating:
+                            $0.rating,
+                        label:
+                            $0.label
+                    )
+                }
+
+        return PlannerAIInput(
+            scope: scope,
+            request:
+                aiRequest
+                .trimmingCharacters(
+                    in:
+                        .whitespacesAndNewlines
+                ),
+            now: now,
+            rangeStart: rangeStart,
+            rangeEnd: rangeEnd,
+            events:
+                eventSnapshots,
+            goals:
+                Array(goals),
+            existingBlocks:
+                Array(blocks),
+            recentFocus:
+                focus,
+            freeWindows:
+                aiFreeWindows(
+                    rangeStart:
+                        rangeStart,
+                    rangeEnd:
+                        rangeEnd,
+                    events:
+                        events,
+                    now: now
+                )
+        )
+    }
+
+    private func aiEventSnapshot(
+        _ event: EKEvent
+    ) -> PlannerAIEventSnapshot {
+        PlannerAIEventSnapshot(
+            title:
+                event.title
+                ?? "Untitled",
+            start:
+                event.startDate,
+            end:
+                event.endDate,
+            isAllDay:
+                event.isAllDay,
+            calendar:
+                event.calendar.title
+        )
+    }
+
+    private func aiFreeWindows(
+        rangeStart: Date,
+        rangeEnd: Date,
+        events: [EKEvent],
+        now: Date
+    ) -> [PlannerAIFreeWindow] {
+        var result:
+            [PlannerAIFreeWindow] = []
+        var day =
+            calendar.startOfDay(
+                for: rangeStart
+            )
+        var index = 0
+
+        while day < rangeEnd {
+            guard let nextDay =
+                    calendar.date(
+                        byAdding: .day,
+                        value: 1,
+                        to: day
+                    )
+            else {
+                break
+            }
+
+            let workingStart =
+                calendar.date(
+                    byAdding:
+                        .minute,
+                    value:
+                        6 * 60 + 30,
+                    to: day
+                )
+                ?? day
+            let workingEnd =
+                calendar.date(
+                    byAdding:
+                        .minute,
+                    value:
+                        21 * 60 + 30,
+                    to: day
+                )
+                ?? nextDay
+
+            let boundedStart =
+                max(
+                    workingStart,
+                    rangeStart,
+                    now
+                )
+            let boundedEnd =
+                min(
+                    workingEnd,
+                    rangeEnd
+                )
+
+            if boundedEnd
+                > boundedStart {
+                let busy =
+                    events
+                    .filter {
+                        !$0.isAllDay
+                        && $0.startDate
+                            < boundedEnd
+                        && $0.endDate
+                            > boundedStart
+                    }
+                    .map {
+                        (
+                            max(
+                                boundedStart,
+                                $0.startDate
+                                    .addingTimeInterval(
+                                        -10 * 60
+                                    )
+                            ),
+                            min(
+                                boundedEnd,
+                                $0.endDate
+                                    .addingTimeInterval(
+                                        10 * 60
+                                    )
+                            )
+                        )
+                    }
+                    .sorted {
+                        $0.0 < $1.0
+                    }
+
+                var cursor =
+                    boundedStart
+
+                for interval in busy {
+                    if interval.0
+                        > cursor,
+                       interval.0
+                        .timeIntervalSince(
+                            cursor
+                        )
+                        >= 30 * 60 {
+                        result.append(
+                            PlannerAIFreeWindow(
+                                id:
+                                    "gap-\(index)",
+                                start:
+                                    cursor,
+                                end:
+                                    interval.0
+                            )
+                        )
+                        index += 1
+                    }
+
+                    cursor =
+                        max(
+                            cursor,
+                            interval.1
+                        )
+                }
+
+                if boundedEnd
+                    .timeIntervalSince(
+                        cursor
+                    )
+                    >= 30 * 60 {
+                    result.append(
+                        PlannerAIFreeWindow(
+                            id:
+                                "gap-\(index)",
+                            start:
+                                cursor,
+                            end:
+                                boundedEnd
+                        )
+                    )
+                    index += 1
+                }
+            }
+
+            day = nextDay
+        }
+
+        return result
+    }
+
+    private func eventsOverlapping(
+        start: Date,
+        end: Date
+    ) -> [EKEvent] {
+        guard end > start else {
+            return []
+        }
+
+        let predicate =
+            store.predicateForEvents(
+                withStart: start,
+                end: end,
+                calendars: nil
+            )
+
+        return store.events(
+            matching: predicate
+        )
+        .filter {
+            !$0.isAllDay
+            && $0.startDate < end
+            && $0.endDate > start
+        }
     }
 
     func reloadGoalEvents() {
