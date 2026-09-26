@@ -802,12 +802,17 @@ final class EventEditorModel: ObservableObject {
     @Published var recurrenceCount: Int
     @Published var recurrenceChanged = false
     @Published var editScope: PlannerEventEditScope
+    let isRecurringSeries: Bool
 
     init(
         event: EKEvent,
-        focusBlock: Bool
+        focusBlock: Bool,
+        recurrenceRule: EKRecurrenceRule?,
+        isRecurringSeries: Bool
     ) {
         self.event = event
+        self.isRecurringSeries =
+            isRecurringSeries
         self.title = event.title ?? ""
         self.start = event.startDate
         self.end = event.endDate
@@ -835,7 +840,8 @@ final class EventEditorModel: ObservableObject {
             alerts.dropFirst().first ?? -1
 
         let rule =
-            event.recurrenceRules?.first
+            recurrenceRule
+            ?? event.recurrenceRules?.first
         self.recurrenceKind =
             plannerRecurrenceKind(from: rule)
         self.recurrenceInterval =
@@ -888,7 +894,7 @@ final class EventEditorModel: ObservableObject {
     ) {
         recurrenceKind = value
         recurrenceChanged = true
-        if event.hasRecurrenceRules {
+        if isRecurringSeries {
             editScope = .futureEvents
         }
     }
@@ -899,7 +905,7 @@ final class EventEditorModel: ObservableObject {
         recurrenceInterval =
             max(1, value)
         recurrenceChanged = true
-        if event.hasRecurrenceRules {
+        if isRecurringSeries {
             editScope = .futureEvents
         }
     }
@@ -909,7 +915,7 @@ final class EventEditorModel: ObservableObject {
     ) {
         recurrenceEndKind = value
         recurrenceChanged = true
-        if event.hasRecurrenceRules {
+        if isRecurringSeries {
             editScope = .futureEvents
         }
     }
@@ -919,7 +925,7 @@ final class EventEditorModel: ObservableObject {
     ) {
         recurrenceEndDate = value
         recurrenceChanged = true
-        if event.hasRecurrenceRules {
+        if isRecurringSeries {
             editScope = .futureEvents
         }
     }
@@ -930,7 +936,7 @@ final class EventEditorModel: ObservableObject {
         recurrenceCount =
             max(1, value)
         recurrenceChanged = true
-        if event.hasRecurrenceRules {
+        if isRecurringSeries {
             editScope = .futureEvents
         }
     }
@@ -2946,7 +2952,7 @@ final class CalendarMenuState: NSObject, ObservableObject {
         ensureCalendarVisible(target)
 
         let wasRecurring =
-            event.hasRecurrenceRules
+            isRecurringEvent(event)
 
         event.title = trimmed
         event.startDate = normalizedStart
@@ -3065,7 +3071,7 @@ final class CalendarMenuState: NSObject, ObservableObject {
         let externalID =
             (event.calendarItemExternalIdentifier ?? "")
         let wasRecurring =
-            event.hasRecurrenceRules
+            isRecurringEvent(event)
 
         do {
             try store.remove(
@@ -3348,14 +3354,60 @@ final class CalendarMenuState: NSObject, ObservableObject {
         }
     }
 
+    func isRecurringEvent(
+        _ event: EKEvent
+    ) -> Bool {
+        event.hasRecurrenceRules
+        || event.occurrenceDate != nil
+        || event.isDetached
+    }
+
+    private func recurrenceRuleForEditing(
+        _ event: EKEvent
+    ) -> EKRecurrenceRule? {
+        if let rule =
+            event.recurrenceRules?.first {
+            return rule
+        }
+
+        let externalID =
+            event.calendarItemExternalIdentifier
+            ?? ""
+        guard !externalID.isEmpty else {
+            return nil
+        }
+
+        return store
+            .calendarItems(
+                withExternalIdentifier:
+                    externalID
+            )
+            .compactMap {
+                $0 as? EKEvent
+            }
+            .compactMap {
+                $0.recurrenceRules?.first
+            }
+            .first
+    }
+
     func showEventEditor(_ event: EKEvent) {
         if let editorWindowController {
             editorWindowController.close()
         }
 
+        let recurring =
+            isRecurringEvent(event)
         let model = EventEditorModel(
             event: event,
-            focusBlock: isFocusBlock(event)
+            focusBlock:
+                isFocusBlock(event),
+            recurrenceRule:
+                recurrenceRuleForEditing(
+                    event
+                ),
+            isRecurringSeries:
+                recurring
         )
 
         let window = NSWindow(
@@ -7628,8 +7680,7 @@ private struct EventEditorView: View {
                             )
                         )
 
-                    if model.event
-                        .hasRecurrenceRules {
+                    if model.isRecurringSeries {
                         Text("Recurring event")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
@@ -8076,7 +8127,7 @@ private struct EventEditorView: View {
                             .disabled(model.allDay)
 
                             Text(
-                                model.event.hasRecurrenceRules
+                                model.isRecurringSeries
                                 ? "For a recurring event, the Focus Block setting applies to the recurring series."
                                 : "When the event begins, Planner can start Focus for the remaining scheduled time."
                             )
