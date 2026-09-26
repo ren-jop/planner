@@ -3552,7 +3552,7 @@ private struct QuickAddView: View {
             HStack(spacing: 7) {
                 ForEach(
                     [30, 60, 90],
-                    id: .self
+                    id: \.self
                 ) { minutes in
                     Button(
                         "\(minutes)m"
@@ -3605,7 +3605,7 @@ private struct QuickAddView: View {
                 ForEach(
                     state.writableCalendars,
                     id:
-                        .calendarIdentifier
+                        \.calendarIdentifier
                 ) { calendar in
                     Text(calendar.title)
                         .tag(
@@ -3623,11 +3623,7 @@ private struct QuickAddView: View {
                 ) {
                     state.createBlock()
                 }
-                .buttonStyle(
-                    state.draftIsFocusBlock
-                    ? .borderedProminent
-                    : .bordered
-                )
+                .buttonStyle(.borderedProminent)
                 .disabled(
                     !state.accessGranted
                     || state
@@ -7209,7 +7205,7 @@ private struct EventEditorView: View {
                 ForEach(
                     state.writableCalendars,
                     id:
-                        .calendarIdentifier
+                        \.calendarIdentifier
                 ) { calendar in
                     Text(calendar.title)
                         .tag(
