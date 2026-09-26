@@ -1644,31 +1644,43 @@ private struct CalendarAgendaView: View {
     var onEdit: ((EKEvent) -> Void)? = nil
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(
-                    state.selectedDate.formatted(
-                        .dateTime
-                            .weekday(.wide)
-                            .day()
-                            .month(.abbreviated)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(
+                        state.selectedDate.formatted(
+                            .dateTime
+                                .weekday(.wide)
+                                .day()
+                                .month(.abbreviated)
+                        )
                     )
-                )
-                .font(
-                    .system(
-                        size: plannerMode ? 16 : 13,
-                        weight: .semibold,
-                        design: .rounded
+                    .font(
+                        .system(
+                            size: plannerMode ? 16 : 13,
+                            weight: .semibold,
+                            design: .rounded
+                        )
                     )
-                )
+
+                    if plannerMode {
+                        Text(
+                            "\(state.selectedEvents.count) event\(state.selectedEvents.count == 1 ? "" : "s") across \(state.visibleCalendarCount) visible calendar\(state.visibleCalendarCount == 1 ? "" : "s")"
+                        )
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    }
+                }
 
                 Spacer()
 
-                Text(
-                    "\(state.selectedEvents.count) event\(state.selectedEvents.count == 1 ? "" : "s")"
-                )
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                if !plannerMode {
+                    Text(
+                        "\(state.selectedEvents.count)"
+                    )
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                }
             }
 
             if state.accessDenied {
@@ -1690,16 +1702,19 @@ private struct CalendarAgendaView: View {
                 ProgressView()
                     .controlSize(.small)
             } else if state.selectedEvents.isEmpty {
-                Text("Nothing scheduled.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(
-                        maxWidth: .infinity,
-                        alignment: .leading
-                    )
+                VStack(alignment: .leading, spacing: 6) {
+                    Image(systemName: "calendar.badge.plus")
+                        .font(.system(size: 18))
+                        .foregroundStyle(.secondary)
+
+                    Text("Nothing scheduled on the visible calendars.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.top, 8)
             } else {
                 ScrollView {
-                    LazyVStack(spacing: plannerMode ? 7 : 5) {
+                    LazyVStack(spacing: 6) {
                         ForEach(
                             state.selectedEvents,
                             id: \.calendarItemIdentifier
@@ -1707,76 +1722,109 @@ private struct CalendarAgendaView: View {
                             eventRow(event)
                         }
                     }
+                    .padding(.vertical, 2)
                 }
             }
         }
     }
 
-    private func eventRow(_ event: EKEvent) -> some View {
-        HStack(spacing: 8) {
-            RoundedRectangle(cornerRadius: 2)
-                .fill(Color.primary.opacity(0.28))
-                .frame(
-                    width: 3,
-                    height: plannerMode ? 38 : 30
-                )
+    private func eventRow(
+        _ event: EKEvent
+    ) -> some View {
+        let color = eventColor(event)
 
-            VStack(alignment: .leading, spacing: 2) {
+        return HStack(
+            alignment: .top,
+            spacing: 9
+        ) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(color)
+                .frame(width: 4, height: 34)
+                .padding(.top, 2)
+
+            VStack(alignment: .leading, spacing: 3) {
                 Text(event.title ?? "Untitled")
                     .font(
                         .system(
-                            size: plannerMode ? 13 : 12,
+                            size: plannerMode ? 12.5 : 12,
                             weight: .medium
                         )
                     )
-                    .lineLimit(1)
+                    .lineLimit(2)
 
                 Text(eventSubtitle(event))
                     .font(.caption2.monospacedDigit())
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(2)
             }
 
-            Spacer()
+            Spacer(minLength: 4)
 
-            if plannerMode,
-               let onEdit,
-               event.calendar.allowsContentModifications {
-                Button {
-                    onEdit(event)
-                } label: {
-                    Image(systemName: "pencil")
-                }
-                .buttonStyle(.plain)
-                .help("Edit event")
-            }
+            if plannerMode {
+                Menu {
+                    if let onEdit,
+                       event.calendar.allowsContentModifications {
+                        Button {
+                            onEdit(event)
+                        } label: {
+                            Label(
+                                "Edit",
+                                systemImage: "pencil"
+                            )
+                        }
+                    }
 
-            if !event.isAllDay,
-               event.endDate > Date() {
-                Button {
-                    state.startFocus(for: event)
-                } label: {
-                    Image(systemName: "timer")
-                }
-                .buttonStyle(.plain)
-                .help("Start in Focus")
-            }
+                    if !event.isAllDay,
+                       event.endDate > Date() {
+                        Button {
+                            state.startFocus(for: event)
+                        } label: {
+                            Label(
+                                "Start in Focus",
+                                systemImage: "timer"
+                            )
+                        }
+                    }
 
-            if plannerMode,
-               event.calendar.allowsContentModifications {
-                Button {
-                    state.deleteEvent(event)
+                    if event.calendar.allowsContentModifications {
+                        Divider()
+
+                        Button(role: .destructive) {
+                            state.deleteEvent(event)
+                        } label: {
+                            Label(
+                                "Delete",
+                                systemImage: "trash"
+                            )
+                        }
+                    }
                 } label: {
-                    Image(systemName: "trash")
+                    Image(systemName: "ellipsis")
+                        .frame(width: 24, height: 22)
+                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                .help("Delete event")
+                .menuStyle(.borderlessButton)
+                .fixedSize()
             }
         }
-        .padding(.vertical, plannerMode ? 4 : 2)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 7)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(color.opacity(0.075))
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(
+                    color.opacity(0.12),
+                    lineWidth: 1
+                )
+        }
     }
 
-    private func eventSubtitle(_ event: EKEvent) -> String {
+    private func eventSubtitle(
+        _ event: EKEvent
+    ) -> String {
         if event.isAllDay {
             return "all day · \(event.calendar.title)"
         }
@@ -1790,6 +1838,19 @@ private struct CalendarAgendaView: View {
             time: .shortened
         )
         return "\(start)–\(end) · \(event.calendar.title)"
+    }
+
+    private func eventColor(
+        _ event: EKEvent
+    ) -> Color {
+        if let cgColor = event.calendar.cgColor,
+           let nsColor = NSColor(
+            cgColor: cgColor
+           ) {
+            return Color(nsColor: nsColor)
+        }
+
+        return Color.accentColor
     }
 }
 
