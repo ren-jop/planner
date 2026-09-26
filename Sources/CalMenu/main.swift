@@ -226,9 +226,51 @@ private func plannerRecurrenceEnd(
     }
 }
 
+private func plannerEKWeekday(
+    _ rawValue: Int
+) -> EKWeekday {
+    switch rawValue {
+    case 1: return .sunday
+    case 2: return .monday
+    case 3: return .tuesday
+    case 4: return .wednesday
+    case 5: return .thursday
+    case 6: return .friday
+    case 7: return .saturday
+    default: return .monday
+    }
+}
+
+private func plannerRecurrenceWeekdays(
+    from rule: EKRecurrenceRule?,
+    startDate: Date
+) -> Set<Int> {
+    if let days = rule?.daysOfTheWeek,
+       !days.isEmpty {
+        return Set(
+            days.map {
+                $0.dayOfTheWeek.rawValue
+            }
+        )
+    }
+
+    if rule?.frequency == .weekly {
+        return [
+            Calendar.current.component(
+                .weekday,
+                from: startDate
+            )
+        ]
+    }
+
+    return []
+}
+
 private func plannerRecurrenceRule(
     kind: PlannerRecurrenceKind,
     interval: Int,
+    weekdays: Set<Int>,
+    startDate: Date,
     endKind: PlannerRecurrenceEndKind,
     endDate: Date,
     occurrenceCount: Int
@@ -244,17 +286,31 @@ private func plannerRecurrenceRule(
     )
     let safeInterval = max(1, interval)
 
-    if kind == .weekdays {
+    if kind == .weekdays
+        || kind == .weekly {
+        let rawDays: [Int]
+        if kind == .weekdays {
+            rawDays = [2, 3, 4, 5, 6]
+        } else if weekdays.isEmpty {
+            rawDays = [
+                Calendar.current.component(
+                    .weekday,
+                    from: startDate
+                )
+            ]
+        } else {
+            rawDays = weekdays.sorted()
+        }
+
         return EKRecurrenceRule(
             recurrenceWith: .weekly,
             interval: safeInterval,
-            daysOfTheWeek: [
-                EKRecurrenceDayOfWeek(.monday),
-                EKRecurrenceDayOfWeek(.tuesday),
-                EKRecurrenceDayOfWeek(.wednesday),
-                EKRecurrenceDayOfWeek(.thursday),
-                EKRecurrenceDayOfWeek(.friday),
-            ],
+            daysOfTheWeek:
+                rawDays.map {
+                    EKRecurrenceDayOfWeek(
+                        plannerEKWeekday($0)
+                    )
+                },
             daysOfTheMonth: nil,
             monthsOfTheYear: nil,
             weeksOfTheYear: nil,
@@ -797,6 +853,7 @@ final class EventEditorModel: ObservableObject {
 
     @Published var recurrenceKind: PlannerRecurrenceKind
     @Published var recurrenceInterval: Int
+    @Published var recurrenceWeekdays: Set<Int>
     @Published var recurrenceEndKind: PlannerRecurrenceEndKind
     @Published var recurrenceEndDate: Date
     @Published var recurrenceCount: Int
@@ -846,6 +903,11 @@ final class EventEditorModel: ObservableObject {
             plannerRecurrenceKind(from: rule)
         self.recurrenceInterval =
             max(1, rule?.interval ?? 1)
+        self.recurrenceWeekdays =
+            plannerRecurrenceWeekdays(
+                from: rule,
+                startDate: event.startDate
+            )
 
         if let recurrenceEnd =
             rule?.recurrenceEnd {
@@ -904,6 +966,16 @@ final class EventEditorModel: ObservableObject {
     ) {
         recurrenceInterval =
             max(1, value)
+        recurrenceChanged = true
+        if isRecurringSeries {
+            editScope = .futureEvents
+        }
+    }
+
+    func setRecurrenceWeekdays(
+        _ value: Set<Int>
+    ) {
+        recurrenceWeekdays = value
         recurrenceChanged = true
         if isRecurringSeries {
             editScope = .futureEvents
@@ -1011,6 +1083,13 @@ final class CalendarMenuState: NSObject, ObservableObject {
     @Published var draftRecurrenceKind:
         PlannerRecurrenceKind = .none
     @Published var draftRecurrenceInterval = 1
+    @Published var draftRecurrenceWeekdays:
+        Set<Int> = [
+            Calendar.current.component(
+                .weekday,
+                from: Date()
+            )
+        ]
     @Published var draftRecurrenceEndKind:
         PlannerRecurrenceEndKind = .never
     @Published var draftRecurrenceEndDate =
@@ -2738,6 +2817,10 @@ final class CalendarMenuState: NSObject, ObservableObject {
                     draftRecurrenceKind,
                 interval:
                     draftRecurrenceInterval,
+                weekdays:
+                    draftRecurrenceWeekdays,
+                startDate:
+                    normalizedStart,
                 endKind:
                     draftRecurrenceEndKind,
                 endDate:
@@ -2779,6 +2862,12 @@ final class CalendarMenuState: NSObject, ObservableObject {
             draftAllDay = false
             draftRecurrenceKind = .none
             draftRecurrenceInterval = 1
+            draftRecurrenceWeekdays = [
+                calendar.component(
+                    .weekday,
+                    from: draftStart
+                )
+            ]
             draftRecurrenceEndKind = .never
             draftRecurrenceCount = 10
             draftAlert1Minutes = 10
@@ -2843,6 +2932,7 @@ final class CalendarMenuState: NSObject, ObservableObject {
         recurrenceKind:
             PlannerRecurrenceKind,
         recurrenceInterval: Int,
+        recurrenceWeekdays: Set<Int>,
         recurrenceEndKind:
             PlannerRecurrenceEndKind,
         recurrenceEndDate: Date,
@@ -3006,6 +3096,10 @@ final class CalendarMenuState: NSObject, ObservableObject {
                         recurrenceKind,
                     interval:
                         recurrenceInterval,
+                    weekdays:
+                        recurrenceWeekdays,
+                    startDate:
+                        normalizedStart,
                     endKind:
                         recurrenceEndKind,
                     endDate:
@@ -8232,6 +8326,9 @@ private struct EventEditorView: View {
                         recurrenceInterval:
                             model
                                 .recurrenceInterval,
+                        recurrenceWeekdays:
+                            model
+                                .recurrenceWeekdays,
                         recurrenceEndKind:
                             model
                                 .recurrenceEndKind,
