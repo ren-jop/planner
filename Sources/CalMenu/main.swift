@@ -749,6 +749,12 @@ struct MonthCell: Identifiable {
     let date: Date?
 }
 
+struct FocusBlockMetadata: Codable, Hashable {
+    let eventID: String
+    var autoStart: Bool
+    var lastTriggeredStart: Date?
+}
+
 struct FocusHistoryEntry: Codable, Identifiable {
     let date: Date
     let kind: String
@@ -807,14 +813,19 @@ final class EventEditorModel: ObservableObject {
     @Published var end: Date
     @Published var allDay: Bool
     @Published var calendarID: String
+    @Published var focusBlock: Bool
 
-    init(event: EKEvent) {
+    init(
+        event: EKEvent,
+        focusBlock: Bool
+    ) {
         self.event = event
         self.title = event.title ?? ""
         self.start = event.startDate
         self.end = event.endDate
         self.allDay = event.isAllDay
         self.calendarID = event.calendar.calendarIdentifier
+        self.focusBlock = focusBlock
     }
 }
 
@@ -826,6 +837,7 @@ final class CalendarMenuState: NSObject, ObservableObject {
     private let defaultCalendarDefaultsKey = "calmenu.defaultCreateCalendarID"
     private let futureCalendarDefaultsKey = "calmenu.futureCalendarID"
     private let visibleCalendarsDefaultsKey = "calmenu.visibleCalendarIDs"
+    private let focusOnlyDefaultsKey = "calmenu.focusOnly"
 
     @Published var accessGranted = false
     @Published var accessDenied = false
@@ -838,6 +850,8 @@ final class CalendarMenuState: NSObject, ObservableObject {
     @Published var visibleCalendarIDs: Set<String> = []
     @Published var plannerPanel = "calendar"
     @Published var plannerInspectorMode = "agenda"
+    @Published var plannerInspectorPresented = false
+    @Published var plannerFocusOnly = false
     @Published var aiRequest = ""
     @Published var aiPlan: PlannerAIPlan?
     @Published var aiIsPlanning = false
@@ -851,10 +865,12 @@ final class CalendarMenuState: NSObject, ObservableObject {
     @Published private(set) var upcomingBlocks: [EKEvent] = []
     @Published private(set) var goalEvents: [EKEvent] = []
     @Published private(set) var focusHistory: [FocusHistoryEntry] = []
+    @Published private(set) var focusBlockMetadata: [String: FocusBlockMetadata] = [:]
 
     @Published var draftTitle = ""
     @Published var draftStart: Date
     @Published var draftEnd: Date
+    @Published var draftIsFocusBlock = true
     @Published var statusMessage = ""
 
     @Published var focusLinked = false
@@ -867,6 +883,8 @@ final class CalendarMenuState: NSObject, ObservableObject {
 
     private var eventStoreObserver: NSObjectProtocol?
     private var reloadWorkItem: DispatchWorkItem?
+    private var focusScheduleTimer: Timer?
+    private var autoFocusLaunchInFlight = false
     private let intelligence = PlannerIntelligenceEngine()
     private var allEventsByDay: [Date: [EKEvent]] = [:]
     private var plannerWindowController: NSWindowController?
@@ -892,6 +910,10 @@ final class CalendarMenuState: NSObject, ObservableObject {
 
         super.init()
 
+        plannerFocusOnly = UserDefaults.standard.bool(
+            forKey: focusOnlyDefaultsKey
+        )
+        loadFocusBlockMetadata()
         rebuildMonthCells()
 
         eventStoreObserver = NotificationCenter.default.addObserver(
@@ -912,12 +934,22 @@ final class CalendarMenuState: NSObject, ObservableObject {
             object: nil
         )
 
+        focusScheduleTimer = Timer.scheduledTimer(
+            timeInterval: 20,
+            target: self,
+            selector: #selector(focusScheduleTick),
+            userInfo: nil,
+            repeats: true
+        )
+        focusScheduleTimer?.tolerance = 3
+
         Task { await requestAccessAndLoad() }
         refreshIntegrationStatus()
     }
 
     deinit {
         reloadWorkItem?.cancel()
+        focusScheduleTimer?.invalidate()
         if let eventStoreObserver {
             NotificationCenter.default.removeObserver(eventStoreObserver)
         }
@@ -945,6 +977,252 @@ final class CalendarMenuState: NSObject, ObservableObject {
         }
         reloadWorkItem = item
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.20, execute: item)
+    }
+
+    private var focusBlockMetadataURL: URL {
+        FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        )[0]
+        .appendingPathComponent(
+            "Planner",
+            isDirectory: true
+        )
+        .appendingPathComponent(
+            "focus-blocks.json"
+        )
+    }
+
+    private func loadFocusBlockMetadata() {
+        let url = focusBlockMetadataURL
+        guard let data = try? Data(
+            contentsOf: url
+        ) else {
+            focusBlockMetadata = [:]
+            return
+        }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        focusBlockMetadata =
+            (try? decoder.decode(
+                [String: FocusBlockMetadata].self,
+                from: data
+            )) ?? [:]
+    }
+
+    private func saveFocusBlockMetadata() {
+        let url = focusBlockMetadataURL
+        let directory =
+            url.deletingLastPathComponent()
+
+        do {
+            try FileManager.default.createDirectory(
+                at: directory,
+                withIntermediateDirectories: true,
+                attributes: [
+                    .posixPermissions: 0o700
+                ]
+            )
+
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            encoder.outputFormatting = [
+                .prettyPrinted,
+                .sortedKeys
+            ]
+
+            let data = try encoder.encode(
+                focusBlockMetadata
+            )
+            try data.write(
+                to: url,
+                options: .atomic
+            )
+            try? FileManager.default.setAttributes(
+                [
+                    .posixPermissions: 0o600
+                ],
+                ofItemAtPath: url.path
+            )
+        } catch {
+            statusMessage =
+                "Could not save Focus Blocks: \(error.localizedDescription)"
+        }
+    }
+
+    func isFocusBlock(
+        _ event: EKEvent
+    ) -> Bool {
+        focusBlockMetadata[
+            event.calendarItemIdentifier
+        ] != nil
+    }
+
+    func setFocusBlock(
+        _ event: EKEvent,
+        enabled: Bool,
+        autoStart: Bool = true
+    ) {
+        let id =
+            event.calendarItemIdentifier
+
+        if enabled {
+            let existing =
+                focusBlockMetadata[id]
+            focusBlockMetadata[id] =
+                FocusBlockMetadata(
+                    eventID: id,
+                    autoStart: autoStart,
+                    lastTriggeredStart:
+                        existing?.lastTriggeredStart
+                )
+        } else {
+            focusBlockMetadata.removeValue(
+                forKey: id
+            )
+        }
+
+        saveFocusBlockMetadata()
+        reloadUpcomingBlocks()
+        reloadWeekEvents()
+    }
+
+    func setPlannerFocusOnly(
+        _ enabled: Bool
+    ) {
+        plannerFocusOnly = enabled
+        UserDefaults.standard.set(
+            enabled,
+            forKey: focusOnlyDefaultsKey
+        )
+    }
+
+    func openNewBlockInspector(
+        on date: Date? = nil
+    ) {
+        if let date {
+            selectDate(date)
+            draftStart = date
+            draftEnd =
+                calendar.date(
+                    byAdding: .minute,
+                    value: 60,
+                    to: date
+                ) ?? date
+        }
+
+        draftIsFocusBlock = true
+        plannerInspectorMode = "add"
+        plannerInspectorPresented = true
+    }
+
+    func openAgendaInspector(
+        on date: Date
+    ) {
+        selectDate(date)
+        plannerInspectorMode = "agenda"
+        plannerInspectorPresented = true
+    }
+
+    func closePlannerInspector() {
+        plannerInspectorPresented = false
+    }
+
+    private func markFocusBlockTriggered(
+        _ event: EKEvent
+    ) {
+        let id =
+            event.calendarItemIdentifier
+        guard var metadata =
+                focusBlockMetadata[id]
+        else {
+            return
+        }
+
+        metadata.lastTriggeredStart =
+            event.startDate
+        focusBlockMetadata[id] = metadata
+        saveFocusBlockMetadata()
+    }
+
+    @objc private func focusScheduleTick() {
+        evaluateFocusSchedule()
+    }
+
+    private func evaluateFocusSchedule() {
+        guard accessGranted,
+              !autoFocusLaunchInFlight
+        else {
+            return
+        }
+
+        refreshIntegrationStatus()
+        guard !focusActive else {
+            return
+        }
+
+        let now = Date()
+        let start =
+            now.addingTimeInterval(
+                -8 * 60 * 60
+            )
+        let end =
+            now.addingTimeInterval(
+                60 * 60
+            )
+
+        let predicate =
+            store.predicateForEvents(
+                withStart: start,
+                end: end,
+                calendars: nil
+            )
+
+        let active = store.events(
+            matching: predicate
+        )
+        .filter { event in
+            guard !event.isAllDay,
+                  event.startDate <= now,
+                  event.endDate > now,
+                  let metadata =
+                    focusBlockMetadata[
+                        event.calendarItemIdentifier
+                    ],
+                  metadata.autoStart
+            else {
+                return false
+            }
+
+            if let last =
+                metadata.lastTriggeredStart,
+               abs(
+                    last.timeIntervalSince(
+                        event.startDate
+                    )
+               ) < 60 {
+                return false
+            }
+
+            return true
+        }
+        .sorted {
+            $0.startDate < $1.startDate
+        }
+
+        guard let event =
+                active.first
+        else {
+            return
+        }
+
+        autoFocusLaunchInFlight = true
+        startFocus(
+            for: event,
+            automatic: true
+        )
     }
 
     static func firstDayOfMonth(_ date: Date, calendar: Calendar) -> Date {
