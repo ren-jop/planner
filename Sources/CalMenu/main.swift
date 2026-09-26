@@ -1205,7 +1205,7 @@ final class CalendarMenuState: NSObject, ObservableObject {
         }
 
         let externalID =
-            event.calendarItemExternalIdentifier
+            (event.calendarItemExternalIdentifier ?? "")
         guard !externalID.isEmpty else {
             return nil
         }
@@ -1246,7 +1246,7 @@ final class CalendarMenuState: NSObject, ObservableObject {
         let id =
             event.calendarItemIdentifier
         let externalID =
-            event.calendarItemExternalIdentifier
+            (event.calendarItemExternalIdentifier ?? "")
         let matchingKey =
             focusMetadataKey(for: event)
 
@@ -3063,7 +3063,7 @@ final class CalendarMenuState: NSObject, ObservableObject {
         let id =
             event.calendarItemIdentifier
         let externalID =
-            event.calendarItemExternalIdentifier
+            (event.calendarItemExternalIdentifier ?? "")
         let wasRecurring =
             event.hasRecurrenceRules
 
@@ -3362,8 +3362,8 @@ final class CalendarMenuState: NSObject, ObservableObject {
             contentRect: NSRect(
                 x: 0,
                 y: 0,
-                width: 430,
-                height: 410
+                width: 520,
+                height: 720
             ),
             styleMask: [
                 .titled,
