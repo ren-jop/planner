@@ -1036,6 +1036,7 @@ final class CalendarMenuState: NSObject, ObservableObject {
     private let defaultCalendarDefaultsKey = "calmenu.defaultCreateCalendarID"
     private let futureCalendarDefaultsKey = "calmenu.futureCalendarID"
     private let visibleCalendarsDefaultsKey = "calmenu.visibleCalendarIDs"
+    private let knownCalendarsDefaultsKey = "calmenu.knownCalendarIDs"
     private let focusOnlyDefaultsKey = "calmenu.focusOnly"
 
     @Published var accessGranted = false
@@ -1651,6 +1652,16 @@ final class CalendarMenuState: NSObject, ObservableObject {
                 forKey: visibleCalendarsDefaultsKey
             ) ?? []
         )
+        let savedKnownIDs = Set(
+            defaults.stringArray(
+                forKey: knownCalendarsDefaultsKey
+            ) ?? []
+        )
+        let newlyDiscoveredIDs =
+            savedKnownIDs.isEmpty
+            ? Set<String>()
+            : availableIDs
+                .subtracting(savedKnownIDs)
 
         if visibleCalendarIDs.isEmpty {
             let restored =
@@ -1661,11 +1672,18 @@ final class CalendarMenuState: NSObject, ObservableObject {
                 restored.isEmpty
                 ? availableIDs
                 : restored
+                    .union(
+                        newlyDiscoveredIDs
+                    )
         } else {
             visibleCalendarIDs =
-                visibleCalendarIDs.intersection(
-                    availableIDs
-                )
+                visibleCalendarIDs
+                    .intersection(
+                        availableIDs
+                    )
+                    .union(
+                        newlyDiscoveredIDs
+                    )
 
             if visibleCalendarIDs.isEmpty,
                !availableIDs.isEmpty {
@@ -1673,6 +1691,12 @@ final class CalendarMenuState: NSObject, ObservableObject {
                     availableIDs
             }
         }
+
+        defaults.set(
+            Array(availableIDs).sorted(),
+            forKey:
+                knownCalendarsDefaultsKey
+        )
 
         if selectedCalendarID.isEmpty ||
             !available.contains(where: { $0.calendarIdentifier == selectedCalendarID }) {
