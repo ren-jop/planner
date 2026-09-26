@@ -48,9 +48,9 @@ macOS will ask for Calendar access on first use.
 - Shows recent Focus work.
 - Compares planned time with completed Focus sessions.
 - Detects Deadlock when it is installed.
-- Includes a local AI Planner that can optimize today or the visible week around existing Calendar events, upcoming goals and Focus history.
-- Uses Apple's on-device Foundation Models / Apple Intelligence when available, with an offline deterministic optimizer as fallback.
-- AI suggestions are proposal-only: nothing is added to Apple Calendar until you explicitly review or add it.
+- Includes a local Suggestions workspace that notices useful free windows from Apple Calendar, upcoming goals and recent Focus history.
+- Suggestions are deterministic and local; there is no model prompt or Apple Intelligence dependency.
+- Suggestions never write directly to Apple Calendar. Using one only opens the normal editable draft, which you still choose whether to save.
 
 ## 0.11.0 Focus Blocks
 
@@ -93,28 +93,9 @@ The Calendar workspace now prioritizes the actual week:
 - a **Focus only** switch filters the week to marked Focus Blocks;
 - the time gutter and minimum day widths are smaller so the seven-day grid gets more space.
 
-### AI integration
+### Suggestions
 
-Approved AI suggestions categorized as study or deep work become Focus Blocks automatically. Other suggestions remain ordinary calendar events unless you choose to mark them.
-
-## 0.10.0 local AI planner
-
-Planner now has an **AI Planner** workspace for local schedule optimization.
-
-It can:
-
-- optimize today or the visible week around existing Apple Calendar events;
-- use upcoming goal/deadline events and assigned time blocks as context;
-- learn a useful focus-block length and preferred time of day from recent completed Focus sessions;
-- understand a natural-language request such as “3 hours of chemistry and 2 hours of Rust this week, keep evenings light”;
-- preserve transition buffers around fixed events;
-- suggest exact blocks with a short reason and category;
-- review a suggestion as a normal editable draft before saving it;
-- add individual approved suggestions to Apple Calendar.
-
-On supported macOS versions with Apple Intelligence available, Planner uses Apple's **Foundation Models** framework and the on-device system language model. Calendar/Focus context is not sent to an external API. When the system model is unavailable, Planner falls back to its own offline scheduling optimizer.
-
-The AI never receives permission to invent calendar availability. Planner computes valid free windows first and validates every generated suggestion against those windows and the current EventKit schedule before it can be added.
+Planner's helper now behaves more like code-editor completion than an autonomous planner. It quietly proposes optional Focus Blocks from genuine free windows. You can use a suggestion to open it as an editable draft or dismiss it; Planner never inserts the event on its own.
 
 ## 0.9.0 calendar redesign
 
