@@ -1621,7 +1621,12 @@ final class CalendarMenuState: NSObject, ObservableObject {
     }
 
     var nextMenuEvent: EKEvent? {
-        menuUpcomingEvents.first
+        menuUpcomingEvents.first(
+            where: {
+                !$0.isAllDay
+            }
+        )
+        ?? menuUpcomingEvents.first
     }
 
     var todayUpcomingBlocks: [EKEvent] {
@@ -3284,28 +3289,49 @@ final class CalendarMenuState: NSObject, ObservableObject {
     private func recurringMaster(
         for event: EKEvent
     ) -> EKEvent? {
-        if event.hasRecurrenceRules {
-            return event
-        }
-
         let externalID =
             event.calendarItemExternalIdentifier
             ?? ""
-        guard !externalID.isEmpty else {
-            return nil
+
+        if !externalID.isEmpty {
+            let candidates =
+                store
+                    .calendarItems(
+                        withExternalIdentifier:
+                            externalID
+                    )
+                    .compactMap {
+                        $0 as? EKEvent
+                    }
+
+            if let master =
+                candidates.first(
+                    where: {
+                        $0.hasRecurrenceRules
+                        && $0.occurrenceDate
+                            == nil
+                    }
+                ) {
+                return master
+            }
+
+            if let recurring =
+                candidates.first(
+                    where: {
+                        $0.hasRecurrenceRules
+                    }
+                ) {
+                return recurring
+            }
         }
 
-        return store
-            .calendarItems(
-                withExternalIdentifier:
-                    externalID
-            )
-            .compactMap {
-                $0 as? EKEvent
-            }
-            .first {
-                $0.hasRecurrenceRules
-            }
+        if event.hasRecurrenceRules
+            && event.occurrenceDate
+                == nil {
+            return event
+        }
+
+        return nil
     }
 
     @discardableResult
