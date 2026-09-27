@@ -6977,6 +6977,48 @@ private struct PlannerCalendarView: View {
                         event
                     )
                 }
+
+                Divider()
+
+                if isRecurring {
+                    Button(
+                        "Delete this occurrence",
+                        role: .destructive
+                    ) {
+                        state.deleteEvent(
+                            event,
+                            span: .thisEvent
+                        )
+                    }
+
+                    Button(
+                        "Delete this and future",
+                        role: .destructive
+                    ) {
+                        state.deleteEvent(
+                            event,
+                            span: .futureEvents
+                        )
+                    }
+
+                    Button(
+                        "Delete entire series",
+                        role: .destructive
+                    ) {
+                        state.deleteEntireRecurringSeries(
+                            event
+                        )
+                    }
+                } else {
+                    Button(
+                        "Delete",
+                        role: .destructive
+                    ) {
+                        state.deleteEvent(
+                            event
+                        )
+                    }
+                }
             }
 
             if !event.isAllDay,
@@ -8803,19 +8845,76 @@ private struct EventEditorView: View {
             Divider()
 
             HStack(spacing: 8) {
-                Button("Delete") {
-                    state.deleteEvent(
-                        model.event,
-                        span:
-                            model.isRecurringSeries
-                            ? model
-                                .editScope
-                                .eventKitSpan
-                            : .thisEvent
-                    )
-                    onClose()
+                if model.isRecurringSeries {
+                    Menu {
+                        Button(
+                            role: .destructive
+                        ) {
+                            if state.deleteEvent(
+                                model.event,
+                                span: .thisEvent
+                            ) {
+                                onClose()
+                            }
+                        } label: {
+                            Label(
+                                "Delete this occurrence",
+                                systemImage: "trash"
+                            )
+                        }
+
+                        Button(
+                            role: .destructive
+                        ) {
+                            if state.deleteEvent(
+                                model.event,
+                                span: .futureEvents
+                            ) {
+                                onClose()
+                            }
+                        } label: {
+                            Label(
+                                "Delete this and future",
+                                systemImage: "trash"
+                            )
+                        }
+
+                        Divider()
+
+                        Button(
+                            role: .destructive
+                        ) {
+                            if state
+                                .deleteEntireRecurringSeries(
+                                    model.event
+                                ) {
+                                onClose()
+                            }
+                        } label: {
+                            Label(
+                                "Delete entire series",
+                                systemImage:
+                                    "trash.slash"
+                            )
+                        }
+                    } label: {
+                        Label(
+                            "Delete",
+                            systemImage: "trash"
+                        )
+                    }
+                    .menuStyle(.borderlessButton)
+                    .foregroundStyle(.red)
+                } else {
+                    Button("Delete") {
+                        if state.deleteEvent(
+                            model.event
+                        ) {
+                            onClose()
+                        }
+                    }
+                    .foregroundStyle(.red)
                 }
-                .foregroundStyle(.red)
 
                 Spacer()
 
