@@ -7177,12 +7177,22 @@ private struct PlannerCalendarView: View {
             )
             / 3600
             * hourHeight
-        let height = max(
-            25,
+        let rawHeight = max(
+            1,
             end.timeIntervalSince(start)
             / 3600
             * hourHeight
-            - 4
+        )
+        let visualGap = min(
+            4,
+            max(
+                1,
+                rawHeight * 0.08
+            )
+        )
+        let height = max(
+            1,
+            rawHeight - visualGap
         )
         let gap: CGFloat = 3
         let outerPadding: CGFloat = 4
@@ -7245,22 +7255,29 @@ private struct PlannerCalendarView: View {
                 alignment: .leading,
                 spacing: 2
             ) {
-                Text(
-                    event.title
-                    ?? "Untitled"
-                )
-                .font(
-                    .system(
-                        size: 10.5,
-                        weight:
-                            isFocus
-                            ? .semibold
-                            : .medium
+                if height >= 12 {
+                    Text(
+                        event.title
+                        ?? "Untitled"
                     )
-                )
-                .lineLimit(
-                    height >= 52 ? 2 : 1
-                )
+                    .font(
+                        .system(
+                            size:
+                                height >= 24
+                                ? 10.5
+                                : 8.5,
+                            weight:
+                                isFocus
+                                ? .semibold
+                                : .medium
+                        )
+                    )
+                    .lineLimit(
+                        height >= 52
+                        ? 2
+                        : 1
+                    )
+                }
 
                 if height >= 38 {
                     Text(
@@ -7294,13 +7311,24 @@ private struct PlannerCalendarView: View {
                         )
                 }
             }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 4)
+            .padding(
+                .horizontal,
+                height >= 18
+                ? 6
+                : 2
+            )
+            .padding(
+                .vertical,
+                height >= 24
+                ? 4
+                : 1
+            )
             .frame(
                 width: eventWidth,
                 height: height,
                 alignment: .topLeading
             )
+            .clipped()
             .background {
                 RoundedRectangle(
                     cornerRadius: 6
