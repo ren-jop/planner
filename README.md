@@ -2,7 +2,7 @@
 
 A small macOS planning app built around Apple Calendar.
 
-**Status:** v0.12.0 preview
+**Status:** v0.12.1 preview
 
 **Platform:** macOS 14+
 
@@ -58,9 +58,10 @@ Planner now writes richer events directly through EventKit so changes sync throu
 
 New event support includes:
 
-- recurring events: daily, weekdays, weekly, monthly and yearly;
-- custom recurrence intervals plus never/date/count recurrence endings;
-- editing one occurrence or this-and-future occurrences of a recurring series;
+- recurring events imported from Apple Calendar are expanded into Planner's week/month views and marked with a repeat icon;
+- daily, weekdays, weekly, monthly and yearly recurrence, including custom every-N-week patterns on any combination of weekdays;
+- explicit cutoff dates, exact occurrence-count endings, or no cutoff;
+- editing one occurrence or this-and-future occurrences of an existing Apple Calendar recurring series, even when EventKit returns an occurrence without its rule attached;
 - deleting one occurrence or this-and-future occurrences;
 - all-day events;
 - event location, notes and URL;
