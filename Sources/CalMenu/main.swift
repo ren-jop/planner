@@ -1081,6 +1081,8 @@ final class CalendarMenuState: NSObject, ObservableObject {
     @Published private(set) var previewTitlesByDay: [Date: [String]] = [:]
     @Published var selectedEvents: [EKEvent] = []
     @Published private(set) var upcomingBlocks: [EKEvent] = []
+    @Published private(set) var menuUpcomingEvents: [EKEvent] = []
+    @Published var menuBarExpanded = false
     @Published private(set) var goalEvents: [EKEvent] = []
     @Published private(set) var focusHistory: [FocusHistoryEntry] = []
     @Published private(set) var focusBlockMetadata: [String: FocusBlockMetadata] = [:]
@@ -1219,6 +1221,7 @@ final class CalendarMenuState: NSObject, ObservableObject {
             self.reloadVisibleData()
             self.reloadWeekEvents()
             self.reloadUpcomingBlocks()
+            self.reloadMenuUpcomingEvents()
             self.reloadGoalEvents()
         }
         reloadWorkItem = item
@@ -1567,6 +1570,7 @@ final class CalendarMenuState: NSObject, ObservableObject {
             reloadVisibleData()
             reloadWeekEvents()
             reloadUpcomingBlocks()
+            reloadMenuUpcomingEvents()
             reloadGoalEvents()
             loadFocusHistory()
             evaluateFocusSchedule()
@@ -1614,6 +1618,10 @@ final class CalendarMenuState: NSObject, ObservableObject {
 
     var nextUpcomingBlock: EKEvent? {
         upcomingBlocks.first
+    }
+
+    var nextMenuEvent: EKEvent? {
+        menuUpcomingEvents.first
     }
 
     var todayUpcomingBlocks: [EKEvent] {
@@ -1899,6 +1907,7 @@ final class CalendarMenuState: NSObject, ObservableObject {
 
     func reloadOverviewData() {
         reloadUpcomingBlocks()
+        reloadMenuUpcomingEvents()
         reloadGoalEvents()
         loadFocusHistory()
         refreshIntegrationStatus()
@@ -2401,6 +2410,71 @@ final class CalendarMenuState: NSObject, ObservableObject {
                 )
             }
             .prefix(250)
+            .map { $0 }
+    }
+
+    func reloadMenuUpcomingEvents() {
+        guard accessGranted else {
+            menuUpcomingEvents = []
+            return
+        }
+
+        let now = Date()
+        let start =
+            now.addingTimeInterval(
+                -6 * 60 * 60
+            )
+        guard let end =
+                calendar.date(
+                    byAdding: .day,
+                    value: 7,
+                    to: now
+                )
+        else {
+            menuUpcomingEvents = []
+            return
+        }
+
+        let predicate =
+            store.predicateForEvents(
+                withStart: start,
+                end: end,
+                calendars:
+                    visibleCalendars
+            )
+
+        menuUpcomingEvents =
+            store.events(
+                matching: predicate
+            )
+            .filter {
+                $0.endDate > now
+            }
+            .sorted {
+                let lhsActive =
+                    $0.startDate <= now
+                    && $0.endDate > now
+                let rhsActive =
+                    $1.startDate <= now
+                    && $1.endDate > now
+
+                if lhsActive != rhsActive {
+                    return lhsActive
+                }
+
+                if $0.startDate
+                    != $1.startDate {
+                    return $0.startDate
+                        < $1.startDate
+                }
+
+                return (
+                    $0.title ?? ""
+                ) < (
+                    $1.title ?? ""
+                )
+            }
+            .prefix(12)
             .map { $0 }
     }
 
@@ -3437,8 +3511,14 @@ final class CalendarMenuState: NSObject, ObservableObject {
     }
 
     func onPopoverAppear() {
+        menuBarExpanded = true
         refreshIntegrationStatus()
         reloadUpcomingBlocks()
+        reloadMenuUpcomingEvents()
+    }
+
+    func onPopoverDisappear() {
+        menuBarExpanded = false
     }
 
     func onPlannerAppear() {
@@ -3702,12 +3782,30 @@ final class CalendarMenuState: NSObject, ObservableObject {
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    private func maximizePlannerWindow(
+        _ window: NSWindow
+    ) {
+        guard let screen =
+                window.screen
+                ?? NSScreen.main
+        else {
+            return
+        }
+
+        window.setFrame(
+            screen.visibleFrame,
+            display: true,
+            animate: false
+        )
+    }
+
     func showPlannerWindow() {
         reloadOverviewData()
 
         if let plannerWindowController,
            let window = plannerWindowController.window {
             plannerWindowController.showWindow(nil)
+            maximizePlannerWindow(window)
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
@@ -3744,6 +3842,7 @@ final class CalendarMenuState: NSObject, ObservableObject {
         let windowController = NSWindowController(window: window)
         plannerWindowController = windowController
         windowController.showWindow(nil)
+        maximizePlannerWindow(window)
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
