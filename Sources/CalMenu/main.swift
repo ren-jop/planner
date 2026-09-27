@@ -5713,6 +5713,7 @@ private struct PlannerCalendarView: View {
         let event: EKEvent
         let lane: Int
         let laneCount: Int
+        let laneSpan: Int
     }
 
     private var days: [Date] {
@@ -6658,15 +6659,15 @@ private struct PlannerCalendarView: View {
         let gap: CGFloat = 3
         let outerPadding: CGFloat = 4
         let availableWidth = max(
-            44,
+            1,
             width - outerPadding * 2
         )
         let laneCount = max(
             1,
             placement.laneCount
         )
-        let eventWidth = max(
-            42,
+        let laneWidth = max(
+            1,
             (
                 availableWidth
                 - gap
@@ -6676,12 +6677,27 @@ private struct PlannerCalendarView: View {
             )
             / CGFloat(laneCount)
         )
+        let span = max(
+            1,
+            min(
+                placement.laneSpan,
+                laneCount
+                    - placement.lane
+            )
+        )
+        let eventWidth =
+            laneWidth
+            * CGFloat(span)
+            + gap
+                * CGFloat(
+                    span - 1
+                )
         let x =
             outerPadding
             + CGFloat(
                 placement.lane
             )
-            * (eventWidth + gap)
+            * (laneWidth + gap)
         let color =
             eventColor(event)
 
@@ -7030,7 +7046,42 @@ private struct PlannerCalendarView: View {
                 laneEnds.count
             )
 
+            func overlaps(
+                _ lhs: EKEvent,
+                _ rhs: EKEvent
+            ) -> Bool {
+                lhs.startDate
+                    < rhs.endDate
+                && lhs.endDate
+                    > rhs.startDate
+            }
+
             for item in assigned {
+                var span = 1
+
+                if item.lane
+                    < laneCount - 1 {
+                    for candidateLane
+                        in (item.lane + 1)
+                            ..< laneCount {
+                        let blocked =
+                            assigned.contains {
+                                $0.lane
+                                    == candidateLane
+                                && overlaps(
+                                    item.event,
+                                    $0.event
+                                )
+                            }
+
+                        if blocked {
+                            break
+                        }
+
+                        span += 1
+                    }
+                }
+
                 result.append(
                     Placement(
                         event:
@@ -7038,7 +7089,9 @@ private struct PlannerCalendarView: View {
                         lane:
                             item.lane,
                         laneCount:
-                            laneCount
+                            laneCount,
+                        laneSpan:
+                            span
                     )
                 )
             }
