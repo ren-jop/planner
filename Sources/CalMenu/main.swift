@@ -5003,110 +5003,513 @@ struct CalendarMenuView: View {
     @ObservedObject var state: CalendarMenuState
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Image(systemName: "calendar")
-                    .font(.system(size: 15, weight: .semibold))
+        VStack(
+            alignment: .leading,
+            spacing: 11
+        ) {
+            HStack(spacing: 9) {
+                Image(
+                    systemName:
+                        "calendar.day.timeline.left"
+                )
+                .font(
+                    .system(
+                        size: 16,
+                        weight: .semibold
+                    )
+                )
 
-                VStack(alignment: .leading, spacing: 1) {
+                VStack(
+                    alignment: .leading,
+                    spacing: 1
+                ) {
                     Text("Planner")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(
+                            .system(
+                                size: 13,
+                                weight: .semibold
+                            )
+                        )
 
-                    if let next = state.nextUpcomingBlock {
-                        Text(nextBlockText(next))
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
+                    if let next =
+                        state.nextMenuEvent {
+                        Text(
+                            nextEventText(next)
+                        )
+                        .font(.caption2)
+                        .foregroundStyle(
+                            .secondary
+                        )
+                        .lineLimit(1)
                     } else {
-                        Text("No upcoming block")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                        Text(
+                            "Nothing else scheduled"
+                        )
+                        .font(.caption2)
+                        .foregroundStyle(
+                            .secondary
+                        )
                     }
                 }
 
                 Spacer()
+
+                Button {
+                    state.showPlannerWindow()
+                } label: {
+                    Image(
+                        systemName:
+                            "arrow.up.left.and.arrow.down.right"
+                    )
+                }
+                .buttonStyle(.plain)
+                .help(
+                    "Open maximized Command Center"
+                )
             }
 
             if state.focusActive {
-                HStack(spacing: 5) {
+                HStack(spacing: 6) {
                     Image(systemName: "timer")
 
-                    Text(state.focusLabel ?? "Focus")
-                        .lineLimit(1)
+                    Text(
+                        state.focusLabel
+                        ?? "Focus"
+                    )
+                    .lineLimit(1)
 
                     Spacer()
 
-                    Text(state.deadlockLinked ? "protected" : "active")
+                    Text(
+                        state.deadlockLinked
+                        ? "protected"
+                        : "active"
+                    )
                 }
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+                .padding(
+                    .horizontal,
+                    9
+                )
+                .padding(
+                    .vertical,
+                    7
+                )
+                .background {
+                    RoundedRectangle(
+                        cornerRadius: 8
+                    )
+                    .fill(
+                        Color.primary
+                            .opacity(0.045)
+                    )
+                }
             }
 
             Divider()
 
-            Button {
-                state.showPlannerWindow()
-            } label: {
-                HStack {
-                    Image(systemName: "rectangle.grid.2x2")
-                    Text("Open Command Center")
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.plain)
+            HStack {
+                Text("Up next")
+                    .font(
+                        .system(
+                            size: 11,
+                            weight: .semibold
+                        )
+                    )
 
-            if let next = state.nextUpcomingBlock,
-               !next.isAllDay,
-               next.endDate > Date() {
+                Spacer()
+
+                Text(
+                    "\(state.menuUpcomingEvents.count)"
+                )
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
+
+            if state
+                .menuUpcomingEvents
+                .isEmpty {
+                Text(
+                    "No upcoming events in the next 7 days."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(
+                    .vertical,
+                    8
+                )
+            } else {
+                VStack(spacing: 5) {
+                    ForEach(
+                        Array(
+                            state
+                                .menuUpcomingEvents
+                                .prefix(5)
+                                .enumerated()
+                        ),
+                        id: \.offset
+                    ) { _, event in
+                        upcomingEventRow(event)
+                    }
+                }
+            }
+
+            Divider()
+
+            HStack(spacing: 7) {
                 Button {
-                    state.startFocus(for: next)
+                    state.showPlannerWindow()
                 } label: {
-                    Label("Start next block", systemImage: "timer")
+                    Label(
+                        "Command Center",
+                        systemImage:
+                            "rectangle.grid.2x2"
+                    )
+                    .frame(
+                        maxWidth: .infinity
+                    )
+                }
+                .buttonStyle(.borderedProminent)
+
+                Button {
+                    state.openNewBlockInspector()
+                    state.showPlannerWindow()
+                } label: {
+                    Image(
+                        systemName:
+                            "plus"
+                    )
+                }
+                .buttonStyle(.bordered)
+                .help("New event")
+            }
+
+            HStack {
+                if let next =
+                    state.nextUpcomingBlock,
+                   !next.isAllDay,
+                   next.endDate > Date() {
+                    Button {
+                        state.startFocus(
+                            for: next
+                        )
+                    } label: {
+                        Label(
+                            "Start next Focus Block",
+                            systemImage: "timer"
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Spacer()
+
+                Button {
+                    state.showSettingsWindow()
+                } label: {
+                    Image(
+                        systemName:
+                            "gearshape"
+                    )
                 }
                 .buttonStyle(.plain)
+                .help("Settings")
             }
-
-            Button {
-                state.showSettingsWindow()
-            } label: {
-                Label("Settings", systemImage: "gearshape")
-            }
-            .buttonStyle(.plain)
+            .font(.caption)
         }
-        .padding(12)
-        .frame(width: 300)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .padding(13)
+        .frame(width: 370)
+        .background(
+            Color(
+                nsColor:
+                    .windowBackgroundColor
+            )
+        )
         .preferredColorScheme(.dark)
         .onAppear {
             state.onPopoverAppear()
         }
+        .onDisappear {
+            state.onPopoverDisappear()
+        }
     }
 
-    private func nextBlockText(_ event: EKEvent) -> String {
-        let title = (event.title ?? "Untitled")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+    @ViewBuilder
+    private func upcomingEventRow(
+        _ event: EKEvent
+    ) -> some View {
+        let recurring =
+            state.isRecurringEvent(event)
+
+        Button {
+            if event.calendar
+                .allowsContentModifications {
+                state.showEventEditor(
+                    event
+                )
+            } else {
+                state.selectDate(
+                    event.startDate
+                )
+                state.showPlannerWindow()
+            }
+        } label: {
+            HStack(spacing: 9) {
+                VStack(
+                    alignment: .trailing,
+                    spacing: 1
+                ) {
+                    Text(
+                        event.isAllDay
+                        ? "all day"
+                        : event.startDate
+                            .formatted(
+                                date: .omitted,
+                                time: .shortened
+                            )
+                    )
+                    .font(
+                        .caption2
+                            .monospacedDigit()
+                    )
+
+                    if !Calendar.current
+                        .isDateInToday(
+                            event.startDate
+                        ) {
+                        Text(
+                            event.startDate
+                                .formatted(
+                                    .dateTime
+                                        .weekday(
+                                            .abbreviated
+                                        )
+                                )
+                        )
+                        .font(.system(size: 9))
+                        .foregroundStyle(
+                            .secondary
+                        )
+                    }
+                }
+                .frame(
+                    width: 52,
+                    alignment: .trailing
+                )
+
+                Rectangle()
+                    .fill(
+                        calendarColor(event)
+                    )
+                    .frame(
+                        width: 2,
+                        height: 30
+                    )
+
+                VStack(
+                    alignment: .leading,
+                    spacing: 2
+                ) {
+                    HStack(spacing: 5) {
+                        Text(
+                            event.title
+                            ?? "Untitled"
+                        )
+                        .font(
+                            .system(
+                                size: 12,
+                                weight: .medium
+                            )
+                        )
+                        .lineLimit(1)
+
+                        if recurring {
+                            Image(
+                                systemName:
+                                    "repeat"
+                            )
+                            .font(
+                                .system(
+                                    size: 8
+                                )
+                            )
+                            .foregroundStyle(
+                                .secondary
+                            )
+                        }
+                    }
+
+                    Text(
+                        event.calendar.title
+                    )
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(
+                        .secondary
+                    )
+                    .lineLimit(1)
+                }
+
+                Spacer()
+
+                Image(
+                    systemName:
+                        "chevron.right"
+                )
+                .font(.system(size: 8))
+                .foregroundStyle(
+                    .tertiary
+                )
+            }
+            .padding(
+                .horizontal,
+                8
+            )
+            .padding(
+                .vertical,
+                6
+            )
+            .contentShape(
+                Rectangle()
+            )
+            .background {
+                RoundedRectangle(
+                    cornerRadius: 8
+                )
+                .fill(
+                    Color.primary
+                        .opacity(0.035)
+                )
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func calendarColor(
+        _ event: EKEvent
+    ) -> Color {
+        guard let cgColor =
+                event.calendar.cgColor,
+              let nsColor =
+                NSColor(
+                    cgColor: cgColor
+                )
+        else {
+            return .accentColor
+        }
+
+        return Color(nsColor: nsColor)
+    }
+
+    private func nextEventText(
+        _ event: EKEvent
+    ) -> String {
+        let title =
+            (
+                event.title
+                ?? "Untitled"
+            )
+            .trimmingCharacters(
+                in:
+                    .whitespacesAndNewlines
+            )
+
+        if event.startDate <= Date()
+            && event.endDate > Date() {
+            return "now · \(title)"
+        }
 
         let when: String
 
-        if Calendar.current.isDateInToday(event.startDate) {
-            when = event.startDate.formatted(
-                date: .omitted,
-                time: .shortened
-            )
+        if Calendar.current
+            .isDateInToday(
+                event.startDate
+            ) {
+            when =
+                event.startDate.formatted(
+                    date: .omitted,
+                    time: .shortened
+                )
         } else {
-            when = event.startDate.formatted(
-                .dateTime
-                    .weekday(.abbreviated)
-                    .hour()
-                    .minute()
-            )
+            when =
+                event.startDate.formatted(
+                    .dateTime
+                        .weekday(
+                            .abbreviated
+                        )
+                        .hour()
+                        .minute()
+                )
         }
 
         return "\(when) · \(title)"
+    }
+}
+
+private struct PlannerMenuBarLabel: View {
+    @ObservedObject var state: CalendarMenuState
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "calendar")
+
+            if state.menuBarExpanded,
+               let event =
+                state.nextMenuEvent {
+                Text(
+                    compactEventText(
+                        event
+                    )
+                )
+                .font(
+                    .system(
+                        size: 11,
+                        weight: .medium
+                    )
+                )
+                .lineLimit(1)
+            }
+        }
+        .fixedSize()
+        .accessibilityLabel(
+            "Planner"
+        )
+    }
+
+    private func compactEventText(
+        _ event: EKEvent
+    ) -> String {
+        let rawTitle =
+            (
+                event.title
+                ?? "Untitled"
+            )
+            .trimmingCharacters(
+                in:
+                    .whitespacesAndNewlines
+            )
+        let title =
+            rawTitle.count > 18
+            ? String(
+                rawTitle.prefix(18)
+            ) + "…"
+            : rawTitle
+
+        if event.startDate <= Date()
+            && event.endDate > Date() {
+            return "now · \(title)"
+        }
+
+        let time =
+            event.isAllDay
+            ? "all day"
+            : event.startDate
+                .formatted(
+                    date: .omitted,
+                    time: .shortened
+                )
+
+        return "\(time) · \(title)"
     }
 }
 
@@ -9079,8 +9482,9 @@ struct CalMenuApp: App {
         MenuBarExtra {
             CalendarMenuView(state: state)
         } label: {
-            Image(systemName: "calendar")
-                .accessibilityLabel("calmenu")
+            PlannerMenuBarLabel(
+                state: state
+            )
         }
         .menuBarExtraStyle(.window)
     }
