@@ -226,6 +226,24 @@ private func plannerRecurrenceEnd(
     }
 }
 
+private let plannerWeekdayOrder =
+    [2, 3, 4, 5, 6, 7, 1]
+
+private func plannerWeekdayLabel(
+    _ rawValue: Int
+) -> String {
+    switch rawValue {
+    case 1: return "Sun"
+    case 2: return "Mon"
+    case 3: return "Tue"
+    case 4: return "Wed"
+    case 5: return "Thu"
+    case 6: return "Fri"
+    case 7: return "Sat"
+    default: return "?"
+    }
+}
+
 private func plannerEKWeekday(
     _ rawValue: Int
 ) -> EKWeekday {
@@ -4309,8 +4327,68 @@ private struct QuickAddView: View {
                     in: 1...99
                 )
 
+                if state.draftRecurrenceKind
+                    == .weekly {
+                    VStack(
+                        alignment: .leading,
+                        spacing: 5
+                    ) {
+                        Text("Repeat on")
+                            .font(.caption)
+                            .foregroundStyle(
+                                .secondary
+                            )
+
+                        HStack(spacing: 5) {
+                            ForEach(
+                                plannerWeekdayOrder,
+                                id: \.self
+                            ) { weekday in
+                                let selected =
+                                    state
+                                        .draftRecurrenceWeekdays
+                                        .contains(
+                                            weekday
+                                        )
+                                Button(
+                                    selected
+                                    ? "✓ "
+                                        + plannerWeekdayLabel(
+                                            weekday
+                                        )
+                                    : plannerWeekdayLabel(
+                                        weekday
+                                    )
+                                ) {
+                                    var next =
+                                        state
+                                            .draftRecurrenceWeekdays
+                                    if next.contains(
+                                        weekday
+                                    ) {
+                                        next.remove(
+                                            weekday
+                                        )
+                                    } else {
+                                        next.insert(
+                                            weekday
+                                        )
+                                    }
+                                    state
+                                        .draftRecurrenceWeekdays =
+                                        next
+                                }
+                                .buttonStyle(
+                                    .bordered
+                                )
+                                .controlSize(.mini)
+                            }
+                        }
+                    }
+                }
+
                 Picker(
-                    "Ends",
+                    "Cutoff",
                     selection:
                         $state
                             .draftRecurrenceEndKind
@@ -4320,7 +4398,7 @@ private struct QuickAddView: View {
                             PlannerRecurrenceEndKind
                                 .never
                         )
-                    Text("On date")
+                    Text("Cutoff date")
                         .tag(
                             PlannerRecurrenceEndKind
                                 .date
@@ -8003,8 +8081,71 @@ private struct EventEditorView: View {
                                     in: 1...99
                                 )
 
+                                if model.recurrenceKind
+                                    == .weekly {
+                                    VStack(
+                                        alignment: .leading,
+                                        spacing: 5
+                                    ) {
+                                        Text("Repeat on")
+                                            .font(.caption)
+                                            .foregroundStyle(
+                                                .secondary
+                                            )
+
+                                        HStack(spacing: 5) {
+                                            ForEach(
+                                                plannerWeekdayOrder,
+                                                id: \.self
+                                            ) { weekday in
+                                                let selected =
+                                                    model
+                                                        .recurrenceWeekdays
+                                                        .contains(
+                                                            weekday
+                                                        )
+                                                Button(
+                                                    selected
+                                                    ? "✓ "
+                                                        + plannerWeekdayLabel(
+                                                            weekday
+                                                        )
+                                                    : plannerWeekdayLabel(
+                                                        weekday
+                                                    )
+                                                ) {
+                                                    var next =
+                                                        model
+                                                            .recurrenceWeekdays
+                                                    if next.contains(
+                                                        weekday
+                                                    ) {
+                                                        next.remove(
+                                                            weekday
+                                                        )
+                                                    } else {
+                                                        next.insert(
+                                                            weekday
+                                                        )
+                                                    }
+                                                    model
+                                                        .setRecurrenceWeekdays(
+                                                            next
+                                                        )
+                                                }
+                                                .buttonStyle(
+                                                    .bordered
+                                                )
+                                                .controlSize(
+                                                    .mini
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
                                 Picker(
-                                    "Ends",
+                                    "Cutoff",
                                     selection: Binding(
                                         get: {
                                             model
