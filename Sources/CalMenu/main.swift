@@ -4038,14 +4038,37 @@ private struct CalendarAgendaView: View {
                 .padding(.top, 2)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(event.title ?? "Untitled")
+                HStack(spacing: 5) {
+                    Text(
+                        event.title
+                        ?? "Untitled"
+                    )
                     .font(
                         .system(
-                            size: plannerMode ? 12.5 : 12,
+                            size:
+                                plannerMode
+                                ? 12.5
+                                : 12,
                             weight: .medium
                         )
                     )
                     .lineLimit(2)
+
+                    if state
+                        .isRecurringEvent(
+                            event
+                        ) {
+                        Image(
+                            systemName: "repeat"
+                        )
+                        .font(
+                            .system(size: 9)
+                        )
+                        .foregroundStyle(
+                            .secondary
+                        )
+                    }
+                }
 
                 Text(eventSubtitle(event))
                     .font(.caption2.monospacedDigit())
@@ -4084,13 +4107,55 @@ private struct CalendarAgendaView: View {
                     if event.calendar.allowsContentModifications {
                         Divider()
 
-                        Button(role: .destructive) {
-                            state.deleteEvent(event)
-                        } label: {
-                            Label(
-                                "Delete",
-                                systemImage: "trash"
-                            )
+                        if state
+                            .isRecurringEvent(
+                                event
+                            ) {
+                            Button(
+                                role: .destructive
+                            ) {
+                                state.deleteEvent(
+                                    event,
+                                    span:
+                                        .thisEvent
+                                )
+                            } label: {
+                                Label(
+                                    "Delete this occurrence",
+                                    systemImage:
+                                        "trash"
+                                )
+                            }
+
+                            Button(
+                                role: .destructive
+                            ) {
+                                state.deleteEvent(
+                                    event,
+                                    span:
+                                        .futureEvents
+                                )
+                            } label: {
+                                Label(
+                                    "Delete this and future",
+                                    systemImage:
+                                        "trash"
+                                )
+                            }
+                        } else {
+                            Button(
+                                role: .destructive
+                            ) {
+                                state.deleteEvent(
+                                    event
+                                )
+                            } label: {
+                                Label(
+                                    "Delete",
+                                    systemImage:
+                                        "trash"
+                                )
+                            }
                         }
                     }
                 } label: {
@@ -4120,8 +4185,14 @@ private struct CalendarAgendaView: View {
     private func eventSubtitle(
         _ event: EKEvent
     ) -> String {
+        let recurringSuffix =
+            state.isRecurringEvent(event)
+            ? " · repeats"
+            : ""
+
         if event.isAllDay {
             return "all day · \(event.calendar.title)"
+                + recurringSuffix
         }
 
         let start = event.startDate.formatted(
@@ -4133,6 +4204,7 @@ private struct CalendarAgendaView: View {
             time: .shortened
         )
         return "\(start)–\(end) · \(event.calendar.title)"
+            + recurringSuffix
     }
 
     private func eventColor(
@@ -6438,6 +6510,8 @@ private struct PlannerCalendarView: View {
         let event = placement.event
         let isFocus =
             state.isFocusBlock(event)
+        let isRecurring =
+            state.isRecurringEvent(event)
         let start = max(
             event.startDate,
             visibleStart
@@ -6493,9 +6567,16 @@ private struct PlannerCalendarView: View {
             eventColor(event)
 
         return Button {
-            state.openAgendaInspector(
-                on: day
-            )
+            if event.calendar
+                .allowsContentModifications {
+                state.showEventEditor(
+                    event
+                )
+            } else {
+                state.openAgendaInspector(
+                    on: day
+                )
+            }
         } label: {
             VStack(
                 alignment: .leading,
@@ -6591,19 +6672,29 @@ private struct PlannerCalendarView: View {
             .overlay(
                 alignment: .topTrailing
             ) {
-                if isFocus {
-                    Image(
-                        systemName: "lock.fill"
-                    )
-                    .font(
-                        .system(size: 7.5)
-                    )
-                    .foregroundStyle(
-                        Color.primary
-                            .opacity(0.45)
-                    )
-                    .padding(5)
+                HStack(spacing: 3) {
+                    if isRecurring {
+                        Image(
+                            systemName:
+                                "repeat"
+                        )
+                    }
+
+                    if isFocus {
+                        Image(
+                            systemName:
+                                "lock.fill"
+                        )
+                    }
                 }
+                .font(
+                    .system(size: 7.5)
+                )
+                .foregroundStyle(
+                    Color.primary
+                        .opacity(0.45)
+                )
+                .padding(5)
             }
             .overlay {
                 RoundedRectangle(
@@ -6622,6 +6713,11 @@ private struct PlannerCalendarView: View {
         .buttonStyle(.plain)
         .help(
             "\(event.title ?? "Untitled") · \(event.calendar.title)"
+            + (
+                isRecurring
+                ? " · recurring"
+                : ""
+            )
         )
         .contextMenu {
             Button(
@@ -6638,7 +6734,11 @@ private struct PlannerCalendarView: View {
 
             if event.calendar
                 .allowsContentModifications {
-                Button("Edit") {
+                Button(
+                    isRecurring
+                    ? "Edit recurring event…"
+                    : "Edit"
+                ) {
                     state.showEventEditor(
                         event
                     )
