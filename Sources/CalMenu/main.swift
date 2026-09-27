@@ -3190,70 +3190,189 @@ final class CalendarMenuState: NSObject, ObservableObject {
         }
     }
 
+    private func eventForMutation(
+        _ event: EKEvent
+    ) -> EKEvent {
+        guard let identifier =
+                event.eventIdentifier,
+              let fresh =
+                store.event(
+                    withIdentifier:
+                        identifier
+                )
+        else {
+            return event
+        }
+
+        return fresh
+    }
+
+    private func recurringMaster(
+        for event: EKEvent
+    ) -> EKEvent? {
+        if event.hasRecurrenceRules {
+            return event
+        }
+
+        let externalID =
+            event.calendarItemExternalIdentifier
+            ?? ""
+        guard !externalID.isEmpty else {
+            return nil
+        }
+
+        return store
+            .calendarItems(
+                withExternalIdentifier:
+                    externalID
+            )
+            .compactMap {
+                $0 as? EKEvent
+            }
+            .first {
+                $0.hasRecurrenceRules
+            }
+    }
+
+    @discardableResult
     func deleteEvent(
         _ event: EKEvent,
         span: EKSpan = .thisEvent
-    ) {
+    ) -> Bool {
         guard event.calendar
             .allowsContentModifications
         else {
             statusMessage =
                 "That calendar is read-only."
-            return
+            return false
         }
 
+        let target =
+            eventForMutation(event)
         let id =
             event.calendarItemIdentifier
         let externalID =
-            (event.calendarItemExternalIdentifier ?? "")
+            event.calendarItemExternalIdentifier
+            ?? ""
         let wasRecurring =
             isRecurringEvent(event)
 
         do {
             try store.remove(
-                event,
+                target,
                 span: span,
                 commit: true
             )
 
             if !wasRecurring
                 || span == .futureEvents {
-                focusBlockMetadata
-                    .removeValue(
-                        forKey: id
-                    )
-
-                if !externalID.isEmpty {
-                    let keys =
-                        focusBlockMetadata
-                            .filter {
-                                $0.value
-                                    .seriesExternalID
-                                    == externalID
-                            }
-                            .map(\.key)
-                    for key in keys {
-                        focusBlockMetadata
-                            .removeValue(
-                                forKey: key
-                            )
-                    }
-                }
-                saveFocusBlockMetadata()
+                removeFocusMetadata(
+                    eventID: id,
+                    externalID: externalID
+                )
             }
 
             statusMessage =
                 span == .futureEvents
-                ? "Deleted this and future events."
-                : "Deleted."
-            reloadVisibleData()
-            reloadWeekEvents()
-            reloadUpcomingBlocks()
-            reloadGoalEvents()
+                ? "Deleted this and future occurrences."
+                : (
+                    wasRecurring
+                    ? "Deleted this occurrence."
+                    : "Deleted."
+                )
+            reloadAfterCalendarMutation()
+            return true
         } catch {
             statusMessage =
-                error.localizedDescription
+                "Could not delete event: "
+                + error.localizedDescription
+            return false
         }
+    }
+
+    @discardableResult
+    func deleteEntireRecurringSeries(
+        _ event: EKEvent
+    ) -> Bool {
+        guard event.calendar
+            .allowsContentModifications
+        else {
+            statusMessage =
+                "That calendar is read-only."
+            return false
+        }
+
+        guard isRecurringEvent(event)
+        else {
+            return deleteEvent(event)
+        }
+
+        let externalID =
+            event.calendarItemExternalIdentifier
+            ?? ""
+        let target =
+            recurringMaster(for: event)
+            ?? eventForMutation(event)
+
+        do {
+            try store.remove(
+                target,
+                span: .futureEvents,
+                commit: true
+            )
+            removeFocusMetadata(
+                eventID:
+                    event.calendarItemIdentifier,
+                externalID: externalID
+            )
+            statusMessage =
+                "Deleted the recurring series."
+            reloadAfterCalendarMutation()
+            return true
+        } catch {
+            statusMessage =
+                "Could not delete recurring series: "
+                + error.localizedDescription
+            return false
+        }
+    }
+
+    private func removeFocusMetadata(
+        eventID: String,
+        externalID: String
+    ) {
+        focusBlockMetadata
+            .removeValue(
+                forKey: eventID
+            )
+
+        if !externalID.isEmpty {
+            let keys =
+                focusBlockMetadata
+                    .filter {
+                        $0.value
+                            .seriesExternalID
+                            == externalID
+                    }
+                    .map(\.key)
+
+            for key in keys {
+                focusBlockMetadata
+                    .removeValue(
+                        forKey: key
+                    )
+            }
+        }
+
+        saveFocusBlockMetadata()
+    }
+
+    private func reloadAfterCalendarMutation() {
+        reloadVisibleData()
+        reloadWeekEvents()
+        reloadUpcomingBlocks()
+        reloadGoalEvents()
+        reloadMenuUpcomingEvents()
     }
 
     func refreshIntegrationStatus() {
