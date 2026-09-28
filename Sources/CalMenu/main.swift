@@ -6424,24 +6424,28 @@ private struct PlannerCalendarView: View {
                             state.isCalendarVisible(
                                 calendar
                             )
-                            ? "checkmark.circle.fill"
-                            : "circle"
+                            ? "checkmark.square.fill"
+                            : "square"
                     )
                 }
             }
         } label: {
-            HStack(spacing: 5) {
-                Image(
-                    systemName: "calendar"
+            HStack(spacing: 6) {
+                Label(
+                    "Calendars",
+                    systemImage: "calendar"
                 )
+
                 Text(
-                    "\(state.visibleCalendarCount)"
+                    "\(state.visibleCalendarCount)/\(state.calendars.count)"
                 )
+                .font(.caption2)
                 .monospacedDigit()
+                .foregroundStyle(.secondary)
             }
         }
         .controlSize(.small)
-        .help("Choose visible calendars")
+        .help("Tick calendars to show or hide them")
     }
 
     @ViewBuilder
@@ -8597,8 +8601,8 @@ struct CalendarSettingsView: View {
                 Image(
                     systemName:
                         visible
-                        ? "checkmark.circle.fill"
-                        : "circle"
+                        ? "checkmark.square.fill"
+                        : "square"
                 )
                 .foregroundStyle(
                     visible
